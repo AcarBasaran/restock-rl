@@ -208,3 +208,50 @@ first day's demand.
   the best checkpoint instead would need a periodic greedy evaluation on
   separate (e.g. tuning) years, which is a protocol decision.
 - **Suggested default:** keep final-model evaluation for the first run.
+
+## Q19 · D20 · The first DQN run clearly fails: what next?
+
+- Result (see `notes/dqn-vs-baseline.md`): DQN scores 67,764 ± 21,110 per year
+  over 5 seeds, against the baseline's 96,614 on the 50 test years. It is
+  worse in every year for every seed.
+- D20's suggested trigger is "DQN cannot match the baseline after 2 tuning
+  rounds". No tuning round has happened yet (nothing was tuned tonight, as
+  instructed), so the trigger hasn't fired.
+- **Question:** run tuning rounds first (Q20), or go straight to a scope
+  reduction (fewer actions, or distribution between stores only)? Also,
+  what counts as one "tuning round"?
+- **Suggested default:** one tuning round on the full 405-action problem
+  first, using tuning years for selection, then decide D20.
+
+## Q20 · D16 · Which hyperparameters to revisit first (likely causes)
+
+- Observations, not tested fixes:
+  - Training reward peaks (about 83k) exactly when ε reaches 0.05 at 0.2M
+    steps, then declines to about 60–68k with sharp drops.
+  - Greedy checkpoints jump around a lot. One seed went from 93.7k to
+    73k, then 0.2k, then 77k on the tuning years.
+- Candidates:
+  - softer or less frequent target updates (`tau`, `target_update_interval`)
+  - learning rate
+  - buffer size
+  - longer exploration or a higher final ε
+  - Double DQN (not in SB3's DQN; would need a different library or a
+    custom implementation, which touches D13)
+  - a reward scale that keeps Q-values near 1 (D17)
+  - action handling (D14)
+- **Question:** which of these does the team want in round 1, and how many
+  configurations × seeds per round?
+- **Suggested default:** none chosen; this needs a team decision.
+
+## Q21 · Q18 follow-up · Checkpoint diagnostic on the tuning years
+
+- To diagnose the failure I evaluated the 500k / 1M / 1.5M / 2M checkpoints
+  greedily on the 20 tuning years. I didn't use the test years, and nothing
+  was selected or reported as the result. The tuning years are also the
+  baseline's grid-search years.
+- **Question:** is using the tuning years for DQN checkpoint or
+  hyperparameter selection acceptable? The alternative is a separate DQN
+  validation seed range.
+- **Suggested default:** a separate validation range (e.g. seeds
+  300000–300019), so that neither method's selection years overlap with the
+  other's. This needs a team decision.

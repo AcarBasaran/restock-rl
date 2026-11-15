@@ -108,12 +108,20 @@ def plot_learning_curves(runs: list[Path], baseline_reward: float, out: Path, wi
     ax.plot(x, mean_curve / 1000, color=SERIES_1, linewidth=2)
     ax.axhline(baseline_reward / 1000, color=TEXT_SECONDARY, linewidth=1.5, linestyle=(0, (5, 4)))
 
-    ax.annotate("DQN, mean of seeds", xy=(x[-1], mean_curve[-1] / 1000), xytext=(-4, 8),
-                textcoords="offset points", ha="right", color=TEXT_PRIMARY, fontsize=9)
+    # Direct labels in empty space above / below the bundle of lines, with a
+    # surface-coloured box so crossing lines never run through the text.
+    box = {"boxstyle": "round,pad=0.2", "facecolor": SURFACE, "edgecolor": "none", "alpha": 0.9}
+    top = max(float(np.max(c[-n // 4:])) for c in curves) / 1000
+    ax.annotate("DQN, mean of seeds", xy=(x[-1], mean_curve[-1] / 1000), xytext=(x[-1], top + 3),
+                textcoords="data", ha="right", va="bottom", color=SERIES_1, fontsize=9, fontweight="bold",
+                bbox=box, arrowprops={"arrowstyle": "-", "color": SERIES_1, "linewidth": 0.8})
     ax.annotate(f"Baseline on test years ({baseline_reward / 1000:.1f}k)", xy=(x[0], baseline_reward / 1000),
                 xytext=(2, 6), textcoords="offset points", ha="left", color=TEXT_SECONDARY, fontsize=9)
-    ax.annotate("individual seeds", xy=(x[n // 3], curves[0][n // 3] / 1000), xytext=(0, -14),
-                textcoords="offset points", ha="center", color=TEXT_SECONDARY, fontsize=8)
+    i = n // 4
+    low = min(float(c[i]) for c in curves) / 1000
+    ax.annotate("individual seeds", xy=(x[i], low), xytext=(0, -45), textcoords="offset points",
+                ha="center", va="top", color=TEXT_SECONDARY, fontsize=8, bbox=box,
+                arrowprops={"arrowstyle": "-", "color": REPLICATE, "linewidth": 0.8})
 
     ax.set_title(f"DQN training reward per simulated year ({window}-year rolling mean, ε-greedy)",
                  color=TEXT_PRIMARY, fontsize=11, loc="left")
