@@ -61,17 +61,17 @@ There is no pending-shipment variable for Store A, since its delivery time is on
 - Depot order from the supplier: {0, 10, 20, 30, 40}.
 - Shipment to Store A: {0, 4, 8, …, 32}.
 - Shipment to Store B: {0, 4, 8, …, 32}.
-- If depot stock is not enough for both requested shipments, the available stock is divided **proportionally** between the requested amounts. The rounding rule is open; see D4.
+- If depot stock is not enough for both requested shipments, the available stock is divided **proportionally** between the requested amounts. The rounding rule is decided; see D4.
 
 **Reward**
 - +10 per unit sold.
-- At the end of the day: holding cost 2 per unit remaining at each store, 1 per unit remaining at the depot. The exact timing relative to shipping is open; see D3.
+- At the end of the day: holding cost 2 per unit remaining at each store, 1 per unit remaining at the depot. The exact timing relative to shipping is decided; see D3.
 - **No other costs.** No purchase cost, no fixed ordering or shipping cost, no lost-sales penalty. Do not add any.
 
 **Objective and task type**
 - Maximize long-term total reward with discount factor γ = 0.99.
 - Continuing task. Training and evaluation use 365-day periods, but the end of the year is **not** a terminal state. Whatever framework is used, the cutoff must be treated as a time-limit truncation (e.g. `truncated=True` in Gymnasium, never `terminated=True`), so value targets still bootstrap at the cutoff.
-- Initial inventories are low and random; the exact range is open, see D6. Pending deliveries start at zero.
+- Initial inventories are low and random; the exact distribution is decided, see D6. Pending deliveries start at zero.
 
 **Baseline**
 - A simple order-up-to policy: whenever stock plus pending deliveries falls below a target level, order the difference. Target levels are set by grid search for a fair comparison. Details are open; see D8–D12.
@@ -94,20 +94,20 @@ Format: ID · tag · status · question · suggested default (NOT approved).
 
 ### Environment rules
 
-- **D1** · [team] · `OPEN` · Delivery-time convention.
-  Default: an order placed at the end of day t arrives at the start of day t+L (depot t+2, A t+1, B t+3), which matches the state definition.
-- **D2** · [team] · `OPEN` · When shipped units leave depot stock.
-  Default: deducted immediately at decision time.
-- **D3** · [team] · `OPEN` · When holding cost is charged: after sales but before shipping, or after shipments leave the depot? In-transit units are not charged in either case.
-  Default: after shipments leave.
-- **D4** · [team] · `OPEN` · Integer rounding in the proportional split.
-  Default: floor each store's share; leftover units stay at the depot.
-- **D5** · [team] · `OPEN` · Stock caps: none, observation clipping only, or hard caps on inventory (e.g. 100 depot / 50 per store)?
-  Default: no caps in the dynamics; clip the observation for the network only.
-- **D6** · [team] · `OPEN` · Initial inventory distribution ("low and random").
-  Default: depot uniform on 0–20, each store uniform on 0–10.
-- **D7** · [team] · `OPEN` · Supplier reliability.
-  Default: unlimited supply, full orders always delivered on time.
+- **D1** · [team] · `DECIDED` · Delivery-time convention.
+  DECIDED: an order placed at the end of day t arrives at the start of day t+L: depot t+2, Store A t+1, Store B t+3. Example: a Store A shipment placed Monday at closing arrives Tuesday morning, before customers.
+- **D2** · [team] · `DECIDED` · When shipped units leave depot stock.
+  DECIDED: shipped units are deducted from depot stock immediately when the decision is made.
+- **D3** · [team] · `DECIDED` · When holding cost is charged.
+  DECIDED: holding cost is charged after shipments leave the depot. Units in transit are not charged.
+- **D4** · [team] · `DECIDED` · Integer rounding in the proportional split.
+  DECIDED: when the depot is short, each store's proportional share is rounded down. Leftover units stay in the depot for the next day.
+- **D5** · [team] · `DECIDED` · Stock caps.
+  DECIDED: no stock caps in the environment dynamics. How observations are scaled or clipped for the network is deferred to the DQN setup.
+- **D6** · [team] · `DECIDED` · Initial inventory distribution ("low and random").
+  DECIDED: initial inventories are drawn from Poisson distributions with means equal to one day's demand: depot 30, Store A 20, Store B 10. Pending deliveries start at zero.
+- **D7** · [team] · `DECIDED` · Supplier reliability.
+  DECIDED: the supplier is unlimited and always delivers full orders on time.
 
 ### Baseline design
 
@@ -124,14 +124,17 @@ Format: ID · tag · status · question · suggested default (NOT approved).
 
 ### DQN setup
 
-- **D13** · [team] · `OPEN` · Stable-Baselines3 DQN or a custom PyTorch implementation (both named in the proposal). This also decides whether the environment follows the Gymnasium API.
-  Default: SB3 first, with a Gymnasium environment.
+- **D13** · [team] · `PARTLY DECIDED` · Stable-Baselines3 DQN or a custom PyTorch implementation (both named in the proposal), and whether the environment follows the Gymnasium API.
+  DECIDED: the environment follows the Gymnasium API.
+  `OPEN`: whether DQN uses Stable-Baselines3 or a custom PyTorch implementation. Default: SB3 first.
 - **D14** · [team] · `OPEN` · Action handling: flat 405 actions, action masking, or a factored head.
   Default: flat, no masking.
 - **D15** · [team] · `OPEN` · Training budget per seed.
   Default: 1–2M steps for the first run.
 - **D16** · [team] · `OPEN` · Hyperparameters (network size, learning rate, ε schedule, buffer size).
   Default: SB3 defaults with a 2×256 MLP; every change recorded.
+  - Sub-item · `OPEN` · How observations are scaled or clipped before they go into the network (deferred here from D5; the environment itself has no stock caps).
+    No default yet.
 - **D17** · [team] · `OPEN` · Reward scaling during training.
   Default: divide by 100 for training only; always report true reward.
 
