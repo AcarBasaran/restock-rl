@@ -1,0 +1,8 @@
+# Tuning round 1, variant V2 (D16): V1 + smaller learning rate, slower target
+# updates, larger batches.
+base: v1.yaml
+variant: V2
+dqn:
+  learning_rate: 0.00005
+  target_update_interval: 20000
+  batch_size: 128

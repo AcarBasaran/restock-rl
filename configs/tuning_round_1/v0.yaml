@@ -1,0 +1,4 @@
+# Tuning round 1, variant V0 (D16): the current configuration, rerun as a reference.
+# Every value not listed here comes from the base file.
+base: ../default.yaml
+variant: V0
