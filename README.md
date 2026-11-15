@@ -81,6 +81,18 @@ done
 
 `summarize` selects the variant from the tuning-year scores alone. `test` re-derives that selection itself (it has no option to pick a variant) and refuses to run a second time. Outputs go to `results/tuning1/` (not committed).
 
+**Extra seeds for the selected variant** (D18: 5 seeds in total). Seeds 200003 and 200004 of V2 are trained as one packed job from a checkout pinned at the round's commit. Each run picks its best checkpoint on the tuning years by the same rule. The checkpoints are then tested once and reported together with the first 3 seeds:
+
+```bash
+git worktree add --detach /scratch/$USER/restock-rl/code-bc48e5c bc48e5c   # the round's commit
+sbatch --job-name=restock-v2-seeds34 --cpus-per-task=2 --mem=4G \
+       --export=ALL,CODE=/scratch/$USER/restock-rl/code-bc48e5c,CONFIG=configs/tuning_round_1/v2.yaml,RUN_NAME=tuning1_v2_extra,SEED_INDICES="3 4" \
+       scripts/train_dqn_packed.slurm
+# when done (login node, under a minute; refuses to run twice):
+.venv/bin/python -m src.tuning test-extra-seeds --round-dir /scratch/$USER/restock-rl/runs/tuning1 \
+       --extra-dir /scratch/$USER/restock-rl/runs/tuning1_v2_extra
+```
+
 All numbers (demand, delivery times, costs, action grids, seed ranges, grid ranges, DQN hyperparameters) are in `configs/default.yaml`.
 
 ## Design decisions beyond the proposal
@@ -121,6 +133,7 @@ These were decided by Acar as provisional choices; the team can object.
 - Because the first DQN run fell well short of the baseline, one focused tuning round comes first. If the best tuned DQN is still clearly below the baseline on the tuning years, the next step is to shrink the problem (which way is decided then, not now). [D20]
 - Tuning round 1 is a fixed set of four variants decided in advance, each trained with 3 seeds for 2 million steps. V0 is the current setup. V1 adds reward centering: a fixed number, the baseline's average daily reward, is subtracted from every training reward before the /100 scaling. V2 is V1 plus a lower learning rate (5e-5), less frequent target updates (every 20,000 steps) and bigger batches (128). V3 is V2 plus slower exploration decay (over 30% of training instead of 10%). Every 100,000 steps a snapshot is saved and scored on the tuning years, and the best snapshot per seed is kept. [D16]
 - DQN may pick its snapshots and settings on the tuning years (the same years the baseline's grid search used). The test years are used once, at the end, for the chosen setup only. [D18]
+- The chosen setup from tuning round 1 (V2) is trained with 5 seeds in total, as D18 requires: 2 extra seeds were added with the identical code and settings, each seed's best snapshot is picked on the tuning years, and the final comparison is the average over all 5 seeds. [D18]
 - All training runs as batch jobs on the VALAR cluster, never on the login node, which is only used for tests, short smoke runs and evaluation. [D22]
 
 ### Setup

@@ -51,3 +51,54 @@ def test_test_command_refuses_second_use_of_test_years(tmp_path):
     (tmp_path / tuning.TEST_MARKER).write_text("{}")
     with pytest.raises(SystemExit, match="already used"):
         tuning.cmd_test(Namespace(round_dir=tmp_path))
+
+
+# ------------------------------------------------- extra seeds (D18, Q26)
+from src.train_dqn import load_run_config  # noqa: E402
+
+
+def _extra_run(path, seed, config, variant="V2", selected_on="tuning", steps=None):
+    path.mkdir(parents=True)
+    best = {"steps": 900000, "checkpoint": "dqn_900000_steps.zip", "mean_total_reward": 97000.0}
+    (path / "best_checkpoint.json").write_text(json.dumps({"selected_on": selected_on, "best": best}))
+    meta = {"seed": seed, "variant": variant, "config": config,
+            "total_timesteps": steps or config["dqn"]["total_timesteps"]}
+    (path / "run.json").write_text(json.dumps(meta))
+
+
+RECORD = {"selected_variant": "v2", "checkpoints": [{"seed": s} for s in (200000, 200001, 200002)]}
+
+
+def test_check_extra_runs_accepts_two_new_v2_seeds(tmp_path):
+    cfg = load_run_config(tuning.CONFIG_DIR / "v2.yaml")
+    _extra_run(tmp_path / "seed_index_4", 200004, cfg)
+    _extra_run(tmp_path / "seed_index_3", 200003, cfg)
+    assert [r["seed"] for r in tuning.check_extra_runs(RECORD, tmp_path, cfg)] == [200003, 200004]
+
+
+@pytest.mark.parametrize("bad", ["variant", "config", "seed", "selection", "steps", "count"])
+def test_check_extra_runs_rejects_mismatches(tmp_path, bad):
+    cfg = load_run_config(tuning.CONFIG_DIR / "v2.yaml")
+    other = load_run_config(tuning.CONFIG_DIR / "v3.yaml")
+    kwargs = {
+        "variant": {"variant": "V3"},
+        "config": {"config": other},
+        "selection": {"selected_on": "test"},
+        "steps": {"steps": 1000},
+    }.get(bad, {})
+    run_cfg = kwargs.pop("config", cfg)
+    _extra_run(tmp_path / "seed_index_3", 200002 if bad == "seed" else 200003, run_cfg, **kwargs)
+    if bad != "count":
+        _extra_run(tmp_path / "seed_index_4", 200004, cfg)
+    with pytest.raises((ValueError, RuntimeError)):
+        tuning.check_extra_runs(RECORD, tmp_path, cfg)
+
+
+def test_test_extra_seeds_needs_first_test_and_runs_once(tmp_path):
+    args = Namespace(round_dir=tmp_path, extra_dir=tmp_path)
+    with pytest.raises(SystemExit, match="first"):
+        tuning.cmd_test_extra_seeds(args)
+    (tmp_path / tuning.TEST_MARKER).write_text("{}")
+    (tmp_path / tuning.EXTRA_MARKER).write_text("{}")
+    with pytest.raises(SystemExit, match="already tested"):
+        tuning.cmd_test_extra_seeds(args)

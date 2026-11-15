@@ -15,6 +15,13 @@ Two steps, in this order:
         checkpoints ONCE on the 50 test years, next to the baseline. Refuses to
         run a second time (marker file in the round directory).
 
+    python -m src.tuning test-extra-seeds --round-dir .../tuning1 --extra-dir .../tuning1_v2_extra
+        D18 (Q26): the selected variant gets 5 seeds. The extra runs must be
+        that variant with the identical config and new training seeds; each
+        run's best checkpoint was picked on the tuning years by the same rule
+        (best_checkpoint.json). Nothing is selected here. Evaluates those
+        checkpoints ONCE on the test years and reports all seeds together.
+
 All numbers are true reward units (uncentered, unscaled). Outputs go to
 results/tuning1/<timestamp>/ (not committed).
 """
@@ -41,6 +48,7 @@ CONFIG_DIR = Path(__file__).resolve().parent.parent / "configs" / "tuning_round_
 VARIANTS = ["v0", "v1", "v2", "v3"]
 SEEDS_PER_VARIANT = 3
 TEST_MARKER = "TEST_EVALUATED.json"
+EXTRA_MARKER = "TEST_EVALUATED_EXTRA_SEEDS.json"
 
 # Categorical slots 1-4 of the reference palette, fixed order V0..V3.
 VARIANT_COLORS = {"v0": "#2a78d6", "v1": "#eb6834", "v2": "#1baf7a", "v3": "#eda100"}
@@ -321,6 +329,111 @@ def cmd_test(args) -> None:
     print(table, json.dumps(paired, indent=2), f"saved to {out_dir}", sep="\n")
 
 
+def check_extra_runs(record: dict[str, Any], extra_dir: Path, config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Validate the extra-seed runs against the first test record; return them in seed order."""
+    variant = record["selected_variant"]
+    done_seeds = {c["seed"] for c in record["checkpoints"]}
+    runs = []
+    for run in sorted(extra_dir.glob("seed_index_*")):
+        meta = json.loads((run / "run.json").read_text())
+        best = json.loads((run / "best_checkpoint.json").read_text())
+        if meta.get("variant") != variant.upper():
+            raise ValueError(f"{run}: variant {meta.get('variant')}, expected {variant.upper()}")
+        if meta["config"] != config:
+            raise ValueError(f"{run}: config differs from configs/tuning_round_1/{variant}.yaml")
+        if meta["total_timesteps"] != config["dqn"]["total_timesteps"]:
+            raise ValueError(f"{run}: {meta['total_timesteps']} steps, expected {config['dqn']['total_timesteps']}")
+        if meta["seed"] in done_seeds:
+            raise ValueError(f"{run}: seed {meta['seed']} was already tested")
+        if best["selected_on"] != "tuning":
+            raise ValueError(f"{run}: checkpoint not selected on the tuning years")
+        runs.append({"dir": run, "seed": meta["seed"], "meta": meta, "best": best["best"]})
+    expected = len(config["dqn"]["training_seeds"]) - len(record["checkpoints"])
+    if len(runs) != expected or len({r["seed"] for r in runs}) != len(runs):
+        raise RuntimeError(f"found {len(runs)} extra runs, expected {expected} new seeds")
+    return sorted(runs, key=lambda r: r["seed"])
+
+
+def cmd_test_extra_seeds(args) -> None:
+    import torch
+    from stable_baselines3 import DQN
+
+    from src.train_dqn import GreedyDQNPolicy
+
+    torch.set_num_threads(1)
+    first = args.round_dir / TEST_MARKER
+    marker = args.round_dir / EXTRA_MARKER
+    if not first.exists():
+        raise SystemExit("run `test` first: there is no first test-year record for this round")
+    if marker.exists():
+        raise SystemExit(f"extra seeds were already tested ({marker}); refusing to run again")
+    record = json.loads(first.read_text())
+    variant = record["selected_variant"]
+    config = load_run_config(CONFIG_DIR / f"{variant}.yaml")
+    extra = check_extra_runs(record, args.extra_dir, config)
+    test_seeds = seed_range(config, "test")
+    if [test_seeds[0], test_seeds[-1]] != record["test_seeds"]:
+        raise RuntimeError("test seed range differs from the first test")
+
+    out_dir = RESULTS_DIR / (datetime.now().strftime("%Y%m%d-%H%M%S") + "_test_extra_seeds")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    base = evaluate(tuned_policy(config), test_seeds, config)
+    if abs(base["summary"]["mean_total_reward"] - record["baseline_test"]["mean_total_reward"]) > 1e-6:
+        raise RuntimeError("baseline test result differs from the first test")
+    base_years = np.array([e["total_reward"] for e in base["episodes"]])
+
+    # The 3 seeds tested before: their summaries and per-year rewards from the first test.
+    first_dir = Path(record["results_dir"])
+    seeds, summaries, per_year = [], [], []
+    for c, summary in zip(record["checkpoints"], record["dqn_test"]):
+        run_name = Path(c["checkpoint"]).parent.parent.name
+        with open(first_dir / f"dqn_{variant}_{run_name}_test_years.csv") as f:
+            per_year.append([float(r["total_reward"]) for r in csv.DictReader(f)])
+        seeds.append(c["seed"])
+        summaries.append(summary)
+    n_first = len(seeds)
+
+    used = []
+    for r in extra:
+        ckpt = r["dir"] / "checkpoints" / r["best"]["checkpoint"]
+        result = evaluate(GreedyDQNPolicy(DQN.load(ckpt, device="cpu"), config), test_seeds, config)
+        save_rows(result["episodes"], out_dir / f"dqn_{variant}_{r['dir'].name}_test_years.csv")
+        keep = out_dir / "models" / r["dir"].name
+        keep.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ckpt, keep / ckpt.name)
+        seeds.append(r["seed"])
+        summaries.append(result["summary"])
+        per_year.append([e["total_reward"] for e in result["episodes"]])
+        used.append({"seed": r["seed"], "checkpoint": str(ckpt), "tuning_reward": r["best"]["mean_total_reward"],
+                     "test_reward": result["summary"]["mean_total_reward"]})
+        print(f"{r['seed']} {ckpt.name}: tuning {r['best']['mean_total_reward']:,.0f}, "
+              f"test {result['summary']['mean_total_reward']:,.0f}", flush=True)
+
+    years = np.array(per_year)
+    diff = years.mean(axis=0) - base_years
+    paired = {"mean_difference_per_year": float(diff.mean()), "std_difference": float(diff.std(ddof=1)),
+              "years_dqn_better": int((diff > 0).sum()),
+              "per_seed_years_better": dict(zip(map(str, seeds), [int((row > base_years).sum()) for row in years])),
+              "per_seed_mean_difference": dict(zip(map(str, seeds), [float((row - base_years).mean()) for row in years]))}
+    lines = [f"| Metric (50 test years) | {variant.upper()}, mean ± std over all {len(seeds)} seeds "
+             f"| {variant.upper()}, first {n_first} seeds | Baseline (60 / 24 / 32) |", "|---|---|---|---|"]
+    for key, label, fmt in METRICS:
+        m, s = mean_std([d[key] for d in summaries])
+        m3, s3 = mean_std([d[key] for d in summaries[:n_first]])
+        lines.append(f"| {label} | {fmt.format(m)} ± {fmt.format(s)} | {fmt.format(m3)} ± {fmt.format(s3)} "
+                     f"| {fmt.format(base['summary'][key])} |")
+    table = "\n".join(lines)
+    out = {"evaluated_at": datetime.now().isoformat(timespec="seconds"), "variant": variant,
+           "selected_on": "tuning", "test_seeds": record["test_seeds"], "new_checkpoints": used,
+           "all_seeds": seeds, "dqn_test_per_seed": dict(zip(map(str, seeds), summaries)),
+           "baseline_test": base["summary"], "paired_all_seeds": paired, "results_dir": str(out_dir),
+           "first_test_results_dir": str(first_dir)}
+    (out_dir / "test_all_seeds.json").write_text(json.dumps(out, indent=2, default=float))
+    (out_dir / "test_all_seeds.md").write_text(table + "\n")
+    marker.write_text(json.dumps(out, indent=2, default=float))
+    print(table, json.dumps(paired, indent=2), f"saved to {out_dir}", sep="\n")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -330,8 +443,11 @@ def main() -> None:
     s.add_argument("--allow-incomplete", action="store_true", help="preview with unfinished runs")
     t = sub.add_parser("test", help="evaluate the selected variant once on the test years")
     t.add_argument("--round-dir", type=Path, required=True)
+    e = sub.add_parser("test-extra-seeds", help="test the selected variant's extra seeds once (D18, 5 seeds)")
+    e.add_argument("--round-dir", type=Path, required=True)
+    e.add_argument("--extra-dir", type=Path, required=True)
     args = parser.parse_args()
-    cmd_summarize(args) if args.command == "summarize" else cmd_test(args)
+    {"summarize": cmd_summarize, "test": cmd_test, "test-extra-seeds": cmd_test_extra_seeds}[args.command](args)
 
 
 if __name__ == "__main__":
