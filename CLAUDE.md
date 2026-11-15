@@ -137,6 +137,12 @@ Note: the baseline involves no learning. Only its three target numbers (depot, S
   DECIDED (provisional, decided by Acar; team can object): 2M training steps per seed for the first run.
 - **D16** · [team] · `DECIDED (provisional)` · Hyperparameters (network size, learning rate, ε schedule, buffer size) and observation scaling.
   DECIDED (provisional, decided by Acar; team can object): SB3 DQN defaults with a 2×256 MLP and γ = 0.99. Observation scaling: divide each feature by a fixed constant from the config, chosen from the observed ranges in the baseline runs. Never change the environment dynamics. Every hyperparameter goes in the config.
+  DECIDED (provisional, decided by Acar; team can object; was open question Q20): tuning round 1 is this fixed set of variants, decided in advance, with no other changes. Each variant gets 3 seeds × 2M steps, runs on SLURM only, uses the same environment, and is evaluated on the tuning years.
+  - V0: the current configuration, rerun with 3 seeds as a reference.
+  - V1: V0 + reward centering. A fixed constant is subtracted from every training reward: the baseline's mean daily reward on the tuning years, taken from the config. The /100 scaling is still applied after centering.
+  - V2: V1 + learning rate 5e-5, target_update_interval 20000, batch size 128.
+  - V3: V2 + exploration_fraction 0.3.
+  For every run, a checkpoint is saved every 100k steps and scored greedily on the tuning years, and the best checkpoint per seed (by mean tuning-year reward) is selected. The best variant is the one with the highest mean best-checkpoint tuning-year reward. Only that variant's 3 selected checkpoints are evaluated once on the 50 test years.
 - **D17** · [team] · `DECIDED (provisional)` · Reward scaling during training.
   DECIDED (provisional, decided by Acar; team can object): rewards are divided by 100 during training only. All reported results use true reward.
 
@@ -144,11 +150,13 @@ Note: the baseline involves no learning. Only its three target numbers (depot, S
 
 - **D18** · [team] · `DECIDED (provisional)` · Number of test years, number of DQN seeds, warm-up exclusion, and seed separation.
   DECIDED (provisional, decided by Acar; team can object): 50 test years (seeds from the existing test range in the config), 5 DQN training seeds, no warm-up exclusion.
+  DECIDED (provisional, decided by Acar; team can object; was open question Q21): DQN may use the tuning years (the same seeds the baseline grid search used) to select checkpoints and settings. The test years are used only once, for the final evaluation of the selected configuration, and never for any selection.
 - **D19** · [team] · `DECIDED (provisional)` · Metric details.
   DECIDED (provisional, decided by Acar; team can object): undiscounted 365-day reward; fill rate per store and overall; average stock per location.
-- **D20** · [team] · `OPEN` · Which scope reduction to use if needed, and when to trigger it.
+- **D20** · [team] · `DECIDED (provisional)` for the trigger · `OPEN` for which reduction · Which scope reduction to use if needed, and when to trigger it.
   Options from the proposal: fewer actions, or distribution between stores only.
-  Default trigger: DQN cannot match the baseline after 2 tuning rounds.
+  DECIDED (provisional, decided by Acar; team can object): run one focused tuning round first (the fixed variants in D16). If the best tuned DQN is still clearly below the baseline on the tuning years, the next step is the scope reduction.
+  Still OPEN: which reduction. It will be decided after tuning round 1, not now.
 
 ### Setup
 

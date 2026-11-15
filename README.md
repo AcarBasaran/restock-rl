@@ -103,6 +103,9 @@ These were decided by Acar as provisional choices; the team can object.
 - Each training seed gets 2 million steps (about 5,500 simulated years) in the first run. [D15]
 - DQN uses Stable-Baselines3's default settings with a two-layer network of 256 units each and a discount factor of 0.99, and each observation value is divided by a fixed constant from the config (chosen from the stock levels seen in baseline runs) without changing the simulation itself. [D16]
 - Rewards are divided by 100 during training only, and every reported number is in true reward units. [D17]
+- Because the first DQN run fell well short of the baseline, one focused tuning round comes first. If the best tuned DQN is still clearly below the baseline on the tuning years, the next step is to shrink the problem (which way is decided then, not now). [D20]
+- Tuning round 1 is a fixed set of four variants decided in advance, each trained with 3 seeds for 2 million steps. V0 is the current setup. V1 adds reward centering: a fixed number, the baseline's average daily reward, is subtracted from every training reward before the /100 scaling. V2 is V1 plus a lower learning rate (5e-5), less frequent target updates (every 20,000 steps) and bigger batches (128). V3 is V2 plus slower exploration decay (over 30% of training instead of 10%). Every 100,000 steps a snapshot is saved and scored on the tuning years, and the best snapshot per seed is kept. [D16]
+- DQN may pick its snapshots and settings on the tuning years (the same years the baseline's grid search used). The test years are used once, at the end, for the chosen setup only. [D18]
 - All training runs as batch jobs on the VALAR cluster, never on the login node, which is only used for tests, short smoke runs and evaluation. [D22]
 
 ### Setup

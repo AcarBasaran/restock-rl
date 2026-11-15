@@ -211,6 +211,8 @@ first day's demand.
 
 ## Q19 · D20 · The first DQN run clearly fails: what next?
 
+**Status (night 3): decided (provisional) in D20.** One focused tuning round first; scope reduction if the best tuned DQN is still clearly below the baseline on the tuning years. Which reduction is still open.
+
 - Result (see `notes/dqn-vs-baseline.md`): DQN scores 67,764 ± 21,110 per year
   over 5 seeds, against the baseline's 96,614 on the 50 test years. It is
   worse in every year for every seed.
@@ -224,6 +226,8 @@ first day's demand.
   first, using tuning years for selection, then decide D20.
 
 ## Q20 · D16 · Which hyperparameters to revisit first (likely causes)
+
+**Status (night 3): decided (provisional) in D16.** Tuning round 1 = fixed variants V0–V3, 3 seeds each.
 
 - Observations, not tested fixes:
   - Training reward peaks (about 83k) exactly when ε reaches 0.05 at 0.2M
@@ -244,6 +248,8 @@ first day's demand.
 - **Suggested default:** none chosen; this needs a team decision.
 
 ## Q21 · Q18 follow-up · Checkpoint diagnostic on the tuning years
+
+**Status (night 3): decided (provisional) in D18.** DQN may select on the tuning years; test years only once for the selected configuration.
 
 - To diagnose the failure I evaluated the 500k / 1M / 1.5M / 2M checkpoints
   greedily on the 20 tuning years. I didn't use the test years, and nothing
