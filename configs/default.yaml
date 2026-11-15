@@ -46,3 +46,28 @@ baseline:             # tuned order-up-to targets (grid search, notes/grid-searc
   depot_target: 60
   store_a_target: 24
   store_b_target: 32
+
+dqn:                  # Stable-Baselines3 DQN (D13–D17); gamma is the top-level value above
+  total_timesteps: 2000000        # per training seed, first run (D15)
+  training_seeds: [200000, 200001, 200002, 200003, 200004]  # 5 seeds (D18); values provisional (Q12)
+  reward_scale: 100               # training reward = true reward / 100 (D17); reports use true reward
+  # Observation scaling (D16): each feature is divided by this constant, in observation order.
+  # Rule (provisional, Q13): maximum seen while the tuned baseline runs on the 20 tuning
+  # years (53, 28, 21, 40, 28, 28), rounded up to the next multiple of 10. No clipping.
+  obs_scale: [60, 30, 30, 40, 30, 30]
+  net_arch: [256, 256]            # 2 x 256 MLP (D16)
+  # Stable-Baselines3 DQN defaults (D16), written out so every hyperparameter is in the config.
+  # tests/test_train_dqn.py checks they still equal the installed SB3's defaults.
+  learning_rate: 0.0001
+  buffer_size: 1000000
+  learning_starts: 100
+  batch_size: 32
+  tau: 1.0
+  train_freq: 4
+  gradient_steps: 1
+  target_update_interval: 10000
+  exploration_fraction: 0.1
+  exploration_initial_eps: 1.0
+  exploration_final_eps: 0.05
+  max_grad_norm: 10
+  torch_threads: 2                # CPU threads per training process (operational, not a hyperparameter)

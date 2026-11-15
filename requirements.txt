@@ -1,4 +1,11 @@
+# Python >= 3.12 (D21). Pinned so every teammate gets identical random draws.
 gymnasium==1.4.0
+matplotlib==3.11.2
 numpy==2.5.4
 pytest==9.2.0
 PyYAML==6.0.3
+stable-baselines3==2.9.2
+tensorboard==2.21.0
+# CPU build is enough for a 2x256 MLP. Install it first with:
+#   pip install torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
+torch==2.15.0
