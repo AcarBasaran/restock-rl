@@ -36,6 +36,7 @@ seeds:
   tuning: {start: 100000, count: 20}      # baseline grid search (D12: about 20 years per candidate)
   test: {start: 900000, count: null}      # final evaluation; count is OPEN (D18)
   # DQN training seeds: OPEN (D18), not defined yet.
+  random_policy_offset: 7000000          # random sanity policy's own RNG: seed = offset + demand seed
 
 grid_search:          # baseline targets (D12); ranges are inclusive
   depot_target: {start: 30, stop: 200, step: 10}

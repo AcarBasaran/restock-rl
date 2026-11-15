@@ -52,8 +52,8 @@ def test_warmup_excludes_first_days():
 def test_same_seeds_same_results():
     config = load_config()
     seeds = [1, 2, 3]
-    r1 = evaluate(RandomPolicy(), seeds, config)
-    r2 = evaluate(RandomPolicy(), seeds, config)
+    r1 = evaluate(RandomPolicy(config), seeds, config)
+    r2 = evaluate(RandomPolicy(config), seeds, config)
     assert [e["total_reward"] for e in r1["episodes"]] == [e["total_reward"] for e in r2["episodes"]]
 
 

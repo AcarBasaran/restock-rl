@@ -142,12 +142,18 @@ def seed_range(config: dict[str, Any], name: str) -> list[int]:
 
 # ----------------------------------------------------------- simple policies
 class RandomPolicy:
-    """Uniformly random action; its own RNG is re-seeded per year for reproducibility."""
+    """Uniformly random action; its own RNG is re-seeded per year for reproducibility.
 
-    def __init__(self, n_actions: int = 405, offset: int = 7_000_000):
-        self.n_actions = n_actions
-        self.offset = offset  # keeps policy randomness independent of the demand seed
-        self.rng = np.random.default_rng(offset)
+    The policy RNG uses seed ``offset + demand seed`` (offset from
+    ``seeds.random_policy_offset`` in the config), so its randomness is
+    reproducible but separate from the demand stream.
+    """
+
+    def __init__(self, config: dict[str, Any] | None = None):
+        cfg = config if config is not None else load_config()
+        self.n_actions = RestockEnv(cfg).n_actions
+        self.offset = int(cfg["seeds"]["random_policy_offset"])
+        self.rng = np.random.default_rng(self.offset)
 
     def reset(self, seed: int) -> None:
         self.rng = np.random.default_rng(self.offset + seed)
@@ -186,7 +192,7 @@ def main() -> None:
 
     config = load_config()
     seeds = seed_range(config, args.seeds)
-    policies = {"random": RandomPolicy(), "do_nothing": do_nothing_policy}
+    policies = {"random": RandomPolicy(config), "do_nothing": do_nothing_policy}
     print(f"Seeds: {seeds[0]}..{seeds[-1]} ({len(seeds)} years), warm-up {args.warmup_days} days\n")
     print(TABLE_HEADER)
     for name in args.policy or ["random", "do_nothing"]:
