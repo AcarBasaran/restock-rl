@@ -113,6 +113,17 @@ class GreedyDQNPolicy:
         return int(action)
 
 
+def _git_commit() -> str | None:
+    import subprocess
+
+    try:
+        repo = Path(__file__).resolve().parent.parent
+        return subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+    except Exception:
+        return None
+
+
 def train(config: dict[str, Any], seed: int, out_dir: Path, timesteps: int | None = None,
           checkpoint_every: int = 500_000) -> dict[str, Any]:
     import stable_baselines3
@@ -132,6 +143,7 @@ def train(config: dict[str, Any], seed: int, out_dir: Path, timesteps: int | Non
     meta = {
         "seed": seed,
         "total_timesteps": total,
+        "git_commit": _git_commit(),
         "host": platform.node(),
         "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
         "slurm_array_task_id": os.environ.get("SLURM_ARRAY_TASK_ID"),
