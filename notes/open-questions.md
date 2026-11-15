@@ -261,3 +261,42 @@ first day's demand.
 - **Suggested default:** a separate validation range (e.g. seeds
   300000–300019), so that neither method's selection years overlap with the
   other's. This needs a team decision.
+
+## Logged during night 3
+
+## Q22 · D16/D18 detail · Which 3 seeds per variant in tuning round 1?
+
+- I used the first three training seeds (200000, 200001, 200002) for every
+  variant, so the variants are compared on the same seeds. V0 on these seeds
+  is the same setup as night 2's seed indices 0–2, which doubles as a
+  reproducibility check (only the checkpoint frequency differs, and it does
+  not affect training).
+- **Question:** is that fine, or should tuning use seeds separate from the
+  5 "final" training seeds?
+- **Suggested default:** keep it. Seeds 200003–200004 were not used tonight.
+
+## Q23 · D22 detail · The `ai` QOS is shared with your other jobs
+
+- QOS `ai` allows 8 running jobs per user (50 submitted). Your other
+  projects (`base-T1`, `g3-relrl`, `g1-eval`, `pool50k`, `inffrac`, ...) run
+  on the same QOS, so tonight's 12 runs competed with them for those 8
+  slots. I did not touch the other jobs.
+- **Question:** is that acceptable, or should restock-rl runs use fewer
+  concurrent slots (e.g. `--array=0-2%2`)?
+
+## Q24 · D20 detail · What counts as "clearly below the baseline"?
+
+- D20 says to move to the scope reduction if the best tuned DQN is "still
+  clearly below" the baseline on the tuning years. No threshold is defined.
+- **Question:** what is the threshold? For example: below the baseline in
+  most tuning years, a gap larger than the seed-to-seed std, or a fixed
+  percentage.
+- **Suggested default:** none. The numbers are reported in
+  `notes/tuning-round-1.md` and the call is the team's.
+
+## Q25 · documentation · Section 2's fallback line is partly stale
+
+- Section 2 (Fallback) says "Which reduction and when is open; see D20".
+  The "when" part is now decided (provisional) in D20. Section 2 needs
+  approval to change, so it was left alone (same situation as Q16).
+- **Suggested change:** "Which reduction is open; when is decided; see D20."

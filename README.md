@@ -66,6 +66,21 @@ The script uses account/partition `ai` with 2 CPUs and no GPU; see the comment a
 
 Results land in `results/dqn/<timestamp>/` (not committed): `comparison.md`, `comparison.json`, per-year CSVs, `learning_curves.png`, `test_reward_by_seed.png`, and copies of each final model.
 
+**Tuning round 1** (D16, D18, D20). The variants V0–V3 are config files in `configs/tuning_round_1/`; each lists only what it changes relative to the previous one. Each SLURM task trains one seed, saves a checkpoint every 100k steps, and then scores every checkpoint greedily on the tuning years (`checkpoint_scores.csv`, `best_checkpoint.json` in the run folder):
+
+```bash
+for v in v0 v1 v2 v3; do
+  sbatch --array=0-2 --job-name=restock-t1-$v \
+         --export=ALL,CONFIG=configs/tuning_round_1/$v.yaml,RUN_NAME=tuning1/$v scripts/train_dqn.slurm
+done
+# when all 12 runs are done (login node, under a minute):
+.venv/bin/python -m src.tuning summarize --round-dir /scratch/$USER/restock-rl/runs/tuning1
+# then, once only: the selected variant's best checkpoints on the 50 test years
+.venv/bin/python -m src.tuning test --round-dir /scratch/$USER/restock-rl/runs/tuning1
+```
+
+`summarize` selects the variant from the tuning-year scores alone. `test` re-derives that selection itself (it has no option to pick a variant) and refuses to run a second time. Outputs go to `results/tuning1/` (not committed).
+
 All numbers (demand, delivery times, costs, action grids, seed ranges, grid ranges, DQN hyperparameters) are in `configs/default.yaml`.
 
 ## Design decisions beyond the proposal
