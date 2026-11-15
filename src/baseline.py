@@ -17,6 +17,8 @@ Usage:
     python -m src.baseline time                  # estimate grid-search runtime
     python -m src.baseline grid-search           # full grid (D12)
     python -m src.baseline grid-search --coarse  # coarse pass, then fine pass
+    python -m src.baseline evaluate --seeds test # tuned targets on the 50 test years
+    python -m src.baseline obs-ranges            # observation ranges (for D16 scaling)
 """
 
 from __future__ import annotations
@@ -189,6 +191,60 @@ def fine_candidates(best: dict[str, Any], config: dict[str, Any], coarse_factor:
     return list(itertools.product(near["depot_target"], near["store_a_target"], near["store_b_target"]))
 
 
+def tuned_policy(config: dict[str, Any]) -> OrderUpToPolicy:
+    """Order-up-to policy with the tuned targets from ``config["baseline"]``."""
+    b = config["baseline"]
+    return OrderUpToPolicy(b["depot_target"], b["store_a_target"], b["store_b_target"], config)
+
+
+def observation_ranges(policy, seeds: Sequence[int], config: dict[str, Any]) -> dict[str, dict[str, float]]:
+    """Min, max and 99th percentile of every observation feature while ``policy`` runs."""
+    import numpy as np
+
+    env = RestockEnv(config)
+    rows = []
+    for seed in seeds:
+        obs, _ = env.reset(seed=int(seed))
+        rows.append(obs)
+        truncated = False
+        while not truncated:
+            obs, _, _, truncated, _ = env.step(policy(obs))
+            rows.append(obs)
+    data = np.array(rows)
+    names = OBS_NAMES[: data.shape[1]]
+    return {
+        name: {"min": float(data[:, i].min()), "p99": float(np.percentile(data[:, i], 99)),
+               "max": float(data[:, i].max())}
+        for i, name in enumerate(names)
+    }
+
+
+OBS_NAMES = ["depot_stock", "store_a_stock", "store_b_stock", "depot_arriving_next_day",
+             "store_b_arriving_in_1_day", "store_b_arriving_in_2_days"]
+
+
+def run_tuned(command: str, seeds_name: str, config: dict[str, Any]) -> None:
+    seeds = seed_range(config, seeds_name)
+    policy = tuned_policy(config)
+    targets = (policy.depot_target, policy.store_a_target, policy.store_b_target)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    out_dir = RESULTS_DIR.parent / "baseline"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if command == "evaluate":
+        result = evaluate(policy, seeds, config)
+        save_rows(result["episodes"], out_dir / f"{stamp}_{seeds_name}_years.csv")
+        out = {"targets": targets, "seeds": [seeds[0], seeds[-1]], "summary": result["summary"]}
+        path = out_dir / f"{stamp}_{seeds_name}_summary.json"
+    else:
+        out = {"targets": targets, "seeds": [seeds[0], seeds[-1]],
+               "ranges": observation_ranges(policy, seeds, config)}
+        path = out_dir / f"{stamp}_{seeds_name}_obs_ranges.json"
+    with open(path, "w") as f:
+        json.dump(out, f, indent=2, default=float)
+    print(json.dumps(out, indent=2, default=float))
+    print(f"saved {path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -198,9 +254,16 @@ def main() -> None:
     gs.add_argument("--nice", type=int, default=10, help="lower the CPU priority of workers")
     gs.add_argument("--coarse", type=int, default=0, metavar="FACTOR",
                     help="coarse pass using every FACTOR-th value, then a fine pass around the best")
+    ev = sub.add_parser("evaluate", help="evaluate the tuned targets from the config")
+    ev.add_argument("--seeds", default="test", help="seed range name in the config")
+    rg = sub.add_parser("obs-ranges", help="observation ranges of the tuned baseline")
+    rg.add_argument("--seeds", default="tuning", help="seed range name in the config")
     args = parser.parse_args()
 
     config = load_config()
+    if args.command in ("evaluate", "obs-ranges"):
+        run_tuned(args.command, args.seeds, config)
+        return
     seeds = seed_range(config, "tuning")
     grids = candidate_grid(config)
     n_full = len(grids["depot_target"]) * len(grids["store_a_target"]) * len(grids["store_b_target"])

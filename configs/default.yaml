@@ -34,11 +34,15 @@ seeds:
   # Demand seeds. Ranges must never overlap.
   sanity: {start: 0, count: 5}            # quick sanity checks only
   tuning: {start: 100000, count: 20}      # baseline grid search (D12: about 20 years per candidate)
-  test: {start: 900000, count: null}      # final evaluation; count is OPEN (D18)
-  # DQN training seeds: OPEN (D18), not defined yet.
+  test: {start: 900000, count: 50}        # final evaluation: 50 test years (D18)
   random_policy_offset: 7000000          # random sanity policy's own RNG: seed = offset + demand seed
 
 grid_search:          # baseline targets (D12); ranges are inclusive
   depot_target: {start: 30, stop: 200, step: 10}
   store_a_target: {start: 20, stop: 80, step: 4}
   store_b_target: {start: 20, stop: 80, step: 4}
+
+baseline:             # tuned order-up-to targets (grid search, notes/grid-search.md)
+  depot_target: 60
+  store_a_target: 24
+  store_b_target: 32

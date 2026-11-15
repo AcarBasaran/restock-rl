@@ -71,10 +71,9 @@ def test_seed_ranges_do_not_overlap():
     sanity = set(seed_range(config, "sanity"))
     tuning = set(seed_range(config, "tuning"))
     assert not sanity & tuning
-    test_start = config["seeds"]["test"]["start"]
-    assert all(s < test_start for s in sanity | tuning)
-    with pytest.raises(ValueError):
-        seed_range(config, "test")  # count is OPEN (D18)
+    test = set(seed_range(config, "test"))
+    assert len(test) == 50  # D18
+    assert not (sanity | tuning) & test
 
 
 def test_summary_fill_rates_pooled():
