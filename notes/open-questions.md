@@ -128,3 +128,83 @@ first day's demand.
   qualify); (b) pin an older NumPy that installs on 3.10 and re-pin
   everyone to it.
 - **Suggested default:** (a), and record the Python minimum in D21.
+
+---
+
+## Logged during night 2
+
+## Q12 · D18 detail · Which numbers are the 5 DQN training seeds?
+
+- D18 fixes 5 seeds but not their values. **Provisional (in the config):**
+  200000–200004. SB3 uses the seed for the network, exploration and the
+  first `reset()`; later training years continue that environment's random
+  stream, so training years never coincide with tuning (100000–100019) or
+  test (900000–900049) years, which always start from a fresh seed.
+- **Suggested default:** keep.
+
+## Q13 · D16 detail · Exact rule for the observation scaling constants
+
+- D16 says "chosen from the observed ranges in the baseline runs" but not
+  how. **Provisional rule:** the maximum of each feature while the tuned
+  baseline runs on the 20 tuning years (53, 28, 21, 40, 28, 28), rounded up
+  to the next multiple of 10 → `[60, 30, 30, 40, 30, 30]`. The test years were
+  not used. There is no clipping, so states DQN reaches that the baseline
+  never does give scaled values above 1 (early in training, Store B stock of
+  ~300 gives 10).
+- **Alternatives:** 99th percentile; or use the action caps (40, 32, 32) for
+  the pipeline features.
+- **Suggested default:** keep the provisional rule.
+
+## Q14 · D22 detail · Which SLURM account and partition?
+
+- The CPU partitions `short`/`mid`/`long` only accept account `users`, which
+  this user does not have. The default account `comx29` may only use
+  `t4_ai` (GPU nodes, 8 h limit), where `sbatch --test-only` estimated a
+  start ~8.5 h later for any job size. Account `ai` on partition `ai` (the
+  account the user's other jobs were using tonight) starts at once.
+- **Used:** account/partition `ai`, QOS `ai`, 2 CPUs, 4 GB, no GPU, 3 h limit.
+  Total use tonight: about 5 × 1 h × 2 CPUs.
+- **Question:** is the `ai` account fine for this course project, or should
+  the team ask the admins for `users` access (CPU partitions) or run under
+  `comx29` on `t4_ai` and accept the wait? Switching is one line in
+  `scripts/train_dqn.slurm`.
+
+## Q15 · new (infrastructure) · `/home` is over its quota
+
+- `beegfs-quota-fs` reports **1.01 TiB used of a 750 GiB hard limit** on
+  `/home` (not caused by this repo, which is ~2 MB). Writes there may start
+  failing. VALAR's login message also asks to run active jobs from
+  `/scratch/$USER`.
+- **Done tonight:** the venv now lives at `/scratch/ebasaran22/restock-rl/venv`
+  and `.venv` is a symlink to it (same path for D21); job outputs go to
+  `/scratch/ebasaran22/restock-rl/`; only small final artifacts (models of
+  ~1 MB, CSVs, plots) are copied into `results/`. `/scratch` is described as
+  temporary, so anything worth keeping should not live only there.
+- **Suggested action:** free space in `/home`.
+
+## Q16 · new (documentation) · Section 2 still says the seed count is open
+
+- Section 2 (Evaluation) still reads "DQN is run with several random seeds
+  … The number is open; see D18". D18 is now decided (5 seeds). Section 2
+  needs approval to change, so it was left alone.
+- **Suggested change:** "The number is decided; see D18."
+
+## Q17 · D23 · Logging (still open)
+
+- Nothing beyond what tonight's tasks needed: SB3's Monitor CSV per run
+  (per-year training reward in true units, used for the learning curves),
+  SB3's console log in the SLURM output files, and a `run.json` per run
+  (seed, git commit, versions, config, runtime). TensorBoard is installed
+  and pinned (allowed) but not enabled.
+- **Suggested default:** TensorBoard + CSV, as in CLAUDE.md.
+
+## Q18 · new (evaluation detail) · What the learning curves show, and model selection
+
+- The curves are the training reward per simulated year under ε-greedy
+  exploration (ε = 0.05 after the first 200k steps) on training years, so
+  they sit below what the greedy policy earns and are not directly
+  comparable to the test results.
+- Each seed is evaluated with its **final** model (as the task asked). Picking
+  the best checkpoint instead would need a periodic greedy evaluation on
+  separate (e.g. tuning) years, which is a protocol decision.
+- **Suggested default:** keep final-model evaluation for the first run.

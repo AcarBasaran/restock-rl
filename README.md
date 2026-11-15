@@ -8,8 +8,11 @@ DQN vs. a tuned order-up-to policy for inventory control in a depot + two-store 
 ```bash
 module load anaconda3/2025.06        # VALAR only; elsewhere use Python >= 3.12
 python -m venv .venv
+.venv/bin/python -m pip install torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu   # CPU build
 .venv/bin/python -m pip install -r requirements.txt
 ```
+
+On VALAR, `/home` has a tight quota, so the venv can live on `/scratch` with a symlink: create it with `python -m venv /scratch/$USER/restock-rl/venv`, then `ln -s /scratch/$USER/restock-rl/venv .venv`.
 
 **Tests:**
 
@@ -31,7 +34,39 @@ python -m venv .venv
 .venv/bin/python -m src.baseline grid-search --coarse 2    # coarse pass, then fine pass
 ```
 
-All numbers (demand, delivery times, costs, action grids, seed ranges, grid ranges) are in `configs/default.yaml`.
+**Baseline on the test years** (tuned targets from the config, 50 test years):
+
+```bash
+.venv/bin/python -m src.baseline evaluate --seeds test
+.venv/bin/python -m src.baseline obs-ranges            # observation ranges used for the DQN scaling
+```
+
+**DQN smoke run** (light work, allowed on the login node; about 1 minute):
+
+```bash
+.venv/bin/python -m src.train_dqn --seed 200000 --timesteps 40000 --out-dir /scratch/$USER/restock-rl/smoke
+```
+
+**DQN training** (D22: only as SLURM jobs, never on the login node). One job per training seed, 2M steps each; outputs go to `/scratch/$USER/restock-rl/runs/dqn/seed_index_<i>/` and logs to `/scratch/$USER/restock-rl/slurm/`:
+
+```bash
+mkdir -p /scratch/$USER/restock-rl/slurm
+sbatch --array=0 --time=00:15:00 --export=ALL,TIMESTEPS=50000,RUN_NAME=timing scripts/train_dqn.slurm   # timing job
+sbatch scripts/train_dqn.slurm                                                                           # all 5 seeds
+squeue -u $USER
+```
+
+The script uses account/partition `ai` with 2 CPUs and no GPU; see the comment at its top and `notes/open-questions.md` before changing it.
+
+**Evaluation and comparison** (greedy DQN vs the tuned baseline on the same 50 test years, plus learning-curve plots; light, runs on the login node in under a minute):
+
+```bash
+.venv/bin/python -m src.compare --runs-dir /scratch/$USER/restock-rl/runs/dqn
+```
+
+Results land in `results/dqn/<timestamp>/` (not committed): `comparison.md`, `comparison.json`, per-year CSVs, `learning_curves.png`, `test_reward_by_seed.png`, and copies of each final model.
+
+All numbers (demand, delivery times, costs, action grids, seed ranges, grid ranges, DQN hyperparameters) are in `configs/default.yaml`.
 
 ## Design decisions beyond the proposal
 
