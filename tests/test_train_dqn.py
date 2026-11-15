@@ -1,6 +1,9 @@
 """Tests for the DQN wrappers and SB3's handling of the day-365 cutoff."""
 
+import csv
 import inspect
+import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -15,12 +18,19 @@ torch.set_num_threads(1)  # tests run on the shared login node; keep them light
 from src.env import RestockEnv, load_config  # noqa: E402
 from src.train_dqn import (  # noqa: E402
     SB3_KWARGS,
+    CenterReward,
     GreedyDQNPolicy,
     ScaleObservation,
     ScaleReward,
     build_model,
+    load_run_config,
     make_training_env,
+    score_checkpoints,
+    select_best,
+    train,
 )
+
+ROUND_1 = Path(__file__).resolve().parent.parent / "configs" / "tuning_round_1"
 
 T = 365
 
@@ -191,3 +201,145 @@ def test_greedy_policy_matches_sb3_predict(config):
         expected, _ = model.predict(obs / scale, deterministic=True)
         assert policy(obs) == int(expected)
         obs, *_ = raw.step(int(rng.integers(405)))
+
+
+# ------------------------------------------------- reward centering (round 1)
+def test_center_reward_subtracts_constant(config):
+    raw = RestockEnv(config)
+    centered = CenterReward(RestockEnv(config), 264.4512)
+    raw.reset(seed=7)
+    centered.reset(seed=7)
+    for a in [0, 17, 404, 200, 81]:
+        _, r_raw, *_ = raw.step(a)
+        _, r_c, *_ = centered.step(a)
+        assert r_c == pytest.approx(r_raw - 264.4512)
+
+
+def test_centered_training_env_scales_after_centering_and_monitor_logs_true_reward():
+    cfg = load_run_config(ROUND_1 / "v1.yaml")
+    c = cfg["baseline"]["tuning_mean_daily_reward"]
+    raw = RestockEnv(cfg)
+    env = make_training_env(cfg)
+    raw.reset(seed=4)
+    env.reset(seed=4)
+    rng = np.random.default_rng(1)
+    true_total = 0.0
+    truncated = False
+    while not truncated:
+        a = int(rng.integers(405))
+        _, r_raw, *_ = raw.step(a)
+        _, r, _, truncated, info = env.step(a)
+        assert r == pytest.approx((r_raw - c) / cfg["dqn"]["reward_scale"])
+        true_total += r_raw
+    # Learning curves come from Monitor: uncentered, unscaled true reward.
+    assert info["episode"]["r"] == pytest.approx(true_total, abs=1e-3)
+
+
+def _wrapper_names(env):
+    names = []
+    while hasattr(env, "env"):
+        names.append(type(env).__name__)
+        env = env.env
+    return names
+
+
+def test_centering_wrapper_only_in_v1_to_v3():
+    for name, centered in [("v0", False), ("v1", True), ("v2", True), ("v3", True)]:
+        names = _wrapper_names(make_training_env(load_run_config(ROUND_1 / f"{name}.yaml")))
+        assert ("CenterReward" in names) == centered, name
+        # Monitor (true reward) sits inside every reward wrapper.
+        assert names.index("Monitor") > names.index("ScaleReward")
+
+
+def test_centering_constant_is_baseline_mean_daily_reward_on_tuning_years(config):
+    from src.baseline import tuned_policy
+    from src.evaluate import evaluate, seed_range
+
+    summary = evaluate(tuned_policy(config), seed_range(config, "tuning"), config)["summary"]
+    expected = summary["mean_total_reward"] / config["episode_length"]
+    assert config["baseline"]["tuning_mean_daily_reward"] == pytest.approx(expected, abs=1e-3)
+
+
+def test_centering_shifts_every_policy_by_the_same_amount(config):
+    # The algebra behind CenterReward's docstring, on real trajectories: over
+    # the same horizon the discounted centered return differs from the true one
+    # by the same constant whatever the actions, so action rankings are unchanged.
+    gamma, c = config["gamma"], 264.4512
+    shifts = []
+    for policy_seed in (0, 1, 2):
+        env = RestockEnv(config)
+        env.reset(seed=9)
+        rng = np.random.default_rng(policy_seed)
+        g_true = g_centered = 0.0
+        for k in range(T):
+            _, r, *_ = env.step(int(rng.integers(405)))
+            g_true += gamma**k * r
+            g_centered += gamma**k * (r - c)
+        shifts.append(g_centered - g_true)
+    expected = -c * (1 - gamma**T) / (1 - gamma)
+    assert shifts == pytest.approx([expected] * 3)
+
+
+# --------------------------------------------------------- variant configs
+def _flatten(d, prefix=""):
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            out.update(_flatten(v, f"{prefix}{k}."))
+        else:
+            out[f"{prefix}{k}"] = v
+    return out
+
+
+def test_variant_configs_differ_only_as_decided(config):
+    v = {name: _flatten(load_run_config(ROUND_1 / f"{name.lower()}.yaml")) for name in ["V0", "V1", "V2", "V3"]}
+    base = _flatten(config)
+
+    def diff(a, b):
+        return {k for k in set(a) | set(b) if a.get(k) != b.get(k)}
+
+    assert diff(base, v["V0"]) == {"variant"}
+    assert diff(v["V0"], v["V1"]) == {"variant", "dqn.reward_centering"} and v["V1"]["dqn.reward_centering"] is True
+    assert diff(v["V1"], v["V2"]) == {"variant", "dqn.learning_rate", "dqn.target_update_interval", "dqn.batch_size"}
+    assert (v["V2"]["dqn.learning_rate"], v["V2"]["dqn.target_update_interval"], v["V2"]["dqn.batch_size"]) == (
+        5e-5, 20000, 128)
+    assert diff(v["V2"], v["V3"]) == {"variant", "dqn.exploration_fraction"} and v["V3"]["dqn.exploration_fraction"] == 0.3
+    for name in v:
+        assert v[name]["variant"] == name
+        assert v[name]["dqn.checkpoint_every"] == 100_000
+        assert v[name]["dqn.total_timesteps"] == 2_000_000
+
+
+def test_v2_model_uses_variant_hyperparameters():
+    cfg = load_run_config(ROUND_1 / "v3.yaml")
+    model = build_model(cfg, make_training_env(cfg), seed=0)
+    assert model.batch_size == 128 and model.target_update_interval == 20000
+    assert model.exploration_fraction == 0.3
+    assert model.policy.optimizer.param_groups[0]["lr"] == pytest.approx(5e-5)
+
+
+# ---------------------------------------------------- checkpoint selection
+def test_select_best_picks_highest_reward_earliest_on_ties():
+    rows = [{"steps": 300, "mean_total_reward": 5.0}, {"steps": 100, "mean_total_reward": 7.0},
+            {"steps": 200, "mean_total_reward": 7.0}]
+    assert select_best(rows)["steps"] == 100
+
+
+def test_score_checkpoints_uses_tuning_years_and_true_reward(tmp_path, config):
+    from src.evaluate import evaluate
+
+    cfg = load_run_config(ROUND_1 / "v1.yaml")
+    cfg["dqn"] = dict(cfg["dqn"], buffer_size=5000, learning_starts=200, torch_threads=1)
+    cfg["seeds"] = dict(cfg["seeds"], tuning={"start": 100000, "count": 2})  # 2 years keep the test fast
+    train(cfg, seed=0, out_dir=tmp_path, timesteps=1000, checkpoint_every=500)
+    result = score_checkpoints(tmp_path, cfg)
+    with open(tmp_path / "checkpoint_scores.csv") as f:
+        rows = list(csv.DictReader(f))
+    assert [int(r["steps"]) for r in rows] == [500, 1000]
+    assert result["selected_on"] == "tuning" and result["tuning_seeds"] == [100000, 100001]
+    assert json.loads((tmp_path / "best_checkpoint.json").read_text())["best"] == result["best"]
+
+    # Scores are the true (uncentered, unscaled) reward of the greedy policy on those years.
+    model = DQN.load(tmp_path / "checkpoints" / "dqn_1000_steps.zip", device="cpu")
+    direct = evaluate(GreedyDQNPolicy(model, cfg), [100000, 100001], cfg)["summary"]["mean_total_reward"]
+    assert float(rows[1]["mean_total_reward"]) == pytest.approx(direct)

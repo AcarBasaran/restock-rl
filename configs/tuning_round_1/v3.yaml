@@ -1,0 +1,5 @@
+# Tuning round 1, variant V3 (D16): V2 + slower epsilon decay.
+base: v2.yaml
+variant: V3
+dqn:
+  exploration_fraction: 0.3

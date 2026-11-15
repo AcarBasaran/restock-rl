@@ -1,0 +1,6 @@
+# Tuning round 1, variant V1 (D16): V0 + reward centering.
+# Training reward = (true reward - baseline.tuning_mean_daily_reward) / reward_scale.
+base: v0.yaml
+variant: V1
+dqn:
+  reward_centering: true

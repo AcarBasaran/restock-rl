@@ -2,9 +2,16 @@
 
 Wrapper order (outermost last):
     RestockEnv -> Monitor (logs TRUE reward per year) -> ScaleObservation (D16)
+               -> CenterReward (only if dqn.reward_centering; tuning round 1 V1-V3)
                -> ScaleReward (D17, training only)
 The environment dynamics are never changed; the wrappers only rescale what
-the network sees and the reward it learns from.
+the network sees and the reward it learns from. Everything reported (Monitor
+learning curves, checkpoint scores, evaluations) is TRUE reward: uncentered
+and unscaled.
+
+Each run saves a checkpoint every ``dqn.checkpoint_every`` steps and, after
+training, scores every checkpoint greedily on the TUNING years (never the
+test years) and records the best one (D16, D18).
 
 The end of a simulated year is a time-limit truncation (``truncated=True``),
 which SB3's replay buffer stores as a timeout, so value targets still
@@ -12,13 +19,18 @@ bootstrap there (tested in tests/test_train_dqn.py).
 
 Usage:
     python -m src.train_dqn --seed-index 0 --out-dir /scratch/$USER/restock-rl/runs/seed0
+    python -m src.train_dqn --config configs/tuning_round_1/v1.yaml --seed-index 0 --out-dir ...
     python -m src.train_dqn --seed 200000 --timesteps 20000 --out-dir /tmp/smoke   # smoke run
-All hyperparameters come from the ``dqn:`` section of configs/default.yaml.
+    python -m src.train_dqn --config ... --score-only --out-dir <run dir>          # (re)score checkpoints
+All hyperparameters come from the ``dqn:`` section of the config
+(configs/default.yaml, or a variant file that overrides it via ``base:``).
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
+import csv
 import json
 import os
 import platform
@@ -30,6 +42,8 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
+import yaml
+
 from src.env import RestockEnv, load_config
 
 # SB3 DQN keyword arguments that are read straight from the config.
@@ -38,6 +52,34 @@ SB3_KWARGS = [
     "gradient_steps", "target_update_interval", "exploration_fraction",
     "exploration_initial_eps", "exploration_final_eps", "max_grad_norm",
 ]
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    out = copy.deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _deep_merge(out[key], value)
+        else:
+            out[key] = copy.deepcopy(value)
+    return out
+
+
+def load_run_config(path: str | Path | None = None) -> dict[str, Any]:
+    """Load a config; a file with ``base: <relative path>`` overrides that file.
+
+    ``None`` gives configs/default.yaml. Variant files (e.g.
+    configs/tuning_round_1/v2.yaml) list only what differs from their base,
+    so "V2 = V1 + ..." is literally what the files say.
+    """
+    if path is None:
+        return load_config()
+    path = Path(path).resolve()
+    with open(path) as f:
+        raw = yaml.safe_load(f) or {}
+    base_rel = raw.pop("base", None)
+    if base_rel is None:
+        return raw
+    return _deep_merge(load_run_config(path.parent / base_rel), raw)
 
 
 class ScaleObservation(gym.ObservationWrapper):
@@ -71,14 +113,48 @@ class ScaleReward(gym.RewardWrapper):
         return reward / self.scale
 
 
+class CenterReward(gym.RewardWrapper):
+    """Subtract a fixed constant from every training reward (tuning round 1, V1-V3).
+
+    Why this does not change the optimal policy: this is a continuing task
+    with discount gamma < 1 (Section 2), and the end of a simulated year is a
+    truncation that SB3 bootstraps through, never a terminal state (tested in
+    tests/test_train_dqn.py). So the values DQN learns are infinite-horizon
+    discounted values. Subtracting a constant c from every reward subtracts
+    the same amount from every value:
+        Q_c(s, a) = E[sum_k gamma^k (r_k - c)] = Q(s, a) - c / (1 - gamma)
+    for every state, action and policy. The shift is identical for all
+    actions, so the argmax, the greedy policy and the optimal policy are
+    unchanged. (With real termination this would NOT hold: episode length
+    could then depend on the policy, and a negative shift would reward ending
+    early. Here there is no termination.)
+
+    What it does change is the scale the network must fit. Uncentered, every
+    Q-value carries a large common offset (about 264 / (1 - 0.99) = 26,445
+    true units, 264 after /100), and the differences between actions that
+    decide the policy are small next to it. Centering on the baseline's daily
+    reward removes most of that offset. The constant is
+    ``baseline.tuning_mean_daily_reward`` from the config.
+    """
+
+    def __init__(self, env: gym.Env, center: float):
+        super().__init__(env)
+        self.center = float(center)
+
+    def reward(self, reward):
+        return reward - self.center
+
+
 def make_training_env(config: dict[str, Any], monitor_file: str | Path | None = None) -> gym.Env:
-    """RestockEnv wrapped for training: true-reward Monitor, then scaling wrappers."""
+    """RestockEnv wrapped for training: true-reward Monitor, then (centering and) scaling wrappers."""
     from stable_baselines3.common.monitor import Monitor
 
     dqn = config["dqn"]
     env: gym.Env = RestockEnv(config)
     env = Monitor(env, filename=str(monitor_file) if monitor_file else None)
     env = ScaleObservation(env, dqn["obs_scale"])
+    if dqn.get("reward_centering", False):
+        env = CenterReward(env, config["baseline"]["tuning_mean_daily_reward"])
     env = ScaleReward(env, dqn["reward_scale"])
     return env
 
@@ -141,8 +217,56 @@ def _git_commit() -> str | None:
         return None
 
 
+SCORE_KEYS = ["mean_total_reward", "std_total_reward", "mean_discounted_reward", "fill_rate_a", "fill_rate_b",
+              "fill_rate", "avg_stock_depot", "avg_stock_a", "avg_stock_b", "mean_lost_a", "mean_lost_b"]
+
+
+def checkpoint_steps(path: Path) -> int:
+    """Training step of an SB3 checkpoint file named ``dqn_<steps>_steps.zip``."""
+    return int(path.stem.split("_")[1])
+
+
+def select_best(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Checkpoint with the highest mean tuning-year reward; ties go to the earliest."""
+    if not rows:
+        raise ValueError("no checkpoint scores")
+    return max(sorted(rows, key=lambda r: r["steps"]), key=lambda r: r["mean_total_reward"])
+
+
+def score_checkpoints(run_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
+    """Score every checkpoint of a run greedily on the TUNING years (D16, D18).
+
+    Writes checkpoint_scores.csv (one row per checkpoint, true reward units)
+    and best_checkpoint.json. The test years are never touched here.
+    """
+    from stable_baselines3 import DQN
+
+    from src.evaluate import evaluate, seed_range
+
+    seeds = seed_range(config, "tuning")
+    paths = sorted((run_dir / "checkpoints").glob("dqn_*_steps.zip"), key=checkpoint_steps)
+    if not paths:
+        raise FileNotFoundError(f"no checkpoints under {run_dir / 'checkpoints'}")
+    rows = []
+    for path in paths:
+        summary = evaluate(GreedyDQNPolicy(DQN.load(path, device="cpu"), config), seeds, config)["summary"]
+        rows.append({"steps": checkpoint_steps(path), "checkpoint": path.name,
+                     **{k: float(summary[k]) for k in SCORE_KEYS}})
+        print(f"  {path.name}: {summary['mean_total_reward']:,.0f} on tuning years", flush=True)
+    with open(run_dir / "checkpoint_scores.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    best = select_best(rows)
+    result = {"selected_on": "tuning", "tuning_seeds": [seeds[0], seeds[-1]], "best": best}
+    with open(run_dir / "best_checkpoint.json", "w") as f:
+        json.dump(result, f, indent=2)
+    print(f"best checkpoint: {best['checkpoint']} ({best['mean_total_reward']:,.0f})", flush=True)
+    return result
+
+
 def train(config: dict[str, Any], seed: int, out_dir: Path, timesteps: int | None = None,
-          checkpoint_every: int = 500_000) -> dict[str, Any]:
+          checkpoint_every: int | None = None, config_file: str | None = None) -> dict[str, Any]:
     import stable_baselines3
     import torch
     from stable_baselines3.common.callbacks import CheckpointCallback
@@ -151,6 +275,8 @@ def train(config: dict[str, Any], seed: int, out_dir: Path, timesteps: int | Non
     dqn = config["dqn"]
     torch.set_num_threads(int(dqn.get("torch_threads", 1)))
     total = int(timesteps if timesteps is not None else dqn["total_timesteps"])
+    if checkpoint_every is None:
+        checkpoint_every = int(dqn.get("checkpoint_every", 100_000))
 
     env = make_training_env(config, monitor_file=out_dir / "monitor")
     model = build_model(config, env, seed, verbose=1)
@@ -158,6 +284,8 @@ def train(config: dict[str, Any], seed: int, out_dir: Path, timesteps: int | Non
                                   name_prefix="dqn")
 
     meta = {
+        "variant": config.get("variant"),
+        "config_file": config_file,
         "seed": seed,
         "total_timesteps": total,
         "git_commit": _git_commit(),
@@ -183,16 +311,33 @@ def train(config: dict[str, Any], seed: int, out_dir: Path, timesteps: int | Non
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    group = parser.add_mutually_exclusive_group(required=True)
+    group = parser.add_mutually_exclusive_group()
     group.add_argument("--seed", type=int, help="training seed value")
     group.add_argument("--seed-index", type=int, help="index into dqn.training_seeds (e.g. SLURM_ARRAY_TASK_ID)")
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--timesteps", type=int, default=None, help="override dqn.total_timesteps (smoke/timing runs)")
+    parser.add_argument("--config", type=Path, default=None, help="config or variant file (default configs/default.yaml)")
+    parser.add_argument("--checkpoint-every", type=int, default=None, help="override dqn.checkpoint_every (smoke runs)")
+    parser.add_argument("--no-score", action="store_true", help="skip scoring checkpoints on the tuning years")
+    parser.add_argument("--score-only", action="store_true", help="only (re)score the checkpoints in --out-dir")
     args = parser.parse_args()
 
-    config = load_config()
+    config = load_run_config(args.config)
+    if args.score_only:
+        import torch
+
+        torch.set_num_threads(int(config["dqn"].get("torch_threads", 1)))
+        score_checkpoints(args.out_dir, config)
+        return
+    if args.seed is None and args.seed_index is None:
+        parser.error("--seed or --seed-index is required")
     seed = args.seed if args.seed is not None else int(config["dqn"]["training_seeds"][args.seed_index])
-    train(config, seed, args.out_dir, args.timesteps)
+    train(config, seed, args.out_dir, args.timesteps, args.checkpoint_every,
+          str(args.config) if args.config else None)
+    if not args.no_score:
+        start = time.time()
+        score_checkpoints(args.out_dir, config)
+        print(f"scored checkpoints in {time.time() - start:.0f} s", flush=True)
 
 
 if __name__ == "__main__":
