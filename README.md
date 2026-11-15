@@ -1,6 +1,38 @@
 # restock-rl
 DQN vs. a tuned order-up-to policy for inventory control in a depot + two-store chain with lost sales and different lead times.
 
+## How to run
+
+**Setup** (once). D21 asks for Python 3.10 or newer, but the pinned NumPy (2.5.4) needs 3.12 or newer (open question Q11 in `notes/open-questions.md`). On the VALAR login node the system `python3` is 3.6, so use the Anaconda module's Python (3.13):
+
+```bash
+module load anaconda3/2025.06        # VALAR only; elsewhere use Python >= 3.12 (see Q11)
+python -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+**Tests:**
+
+```bash
+.venv/bin/python -m pytest
+```
+
+**Sanity check** (random and do-nothing policies on the sanity seeds):
+
+```bash
+.venv/bin/python -m src.evaluate
+```
+
+**Baseline grid search** (D12, on the tuning seeds; results go to `results/grid_search/`, which is not committed):
+
+```bash
+.venv/bin/python -m src.baseline time                      # runtime estimate
+.venv/bin/python -m src.baseline grid-search --workers 4   # full grid
+.venv/bin/python -m src.baseline grid-search --coarse 2    # coarse pass, then fine pass
+```
+
+All numbers (demand, delivery times, costs, action grids, seed ranges, grid ranges) are in `configs/default.yaml`.
+
 ## Design decisions beyond the proposal
 
 These decisions were made during planning and are not in the proposal. If you disagree, comment on the related GitHub issue.
