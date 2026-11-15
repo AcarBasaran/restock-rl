@@ -102,15 +102,26 @@ def build_model(config: dict[str, Any], env: gym.Env, seed: int, verbose: int = 
 
 
 class GreedyDQNPolicy:
-    """Observation -> action for evaluation: scale like in training, greedy action."""
+    """Observation -> action for evaluation: scale like in training, greedy action.
+
+    Same result as ``model.predict(scaled_obs, deterministic=True)`` (argmax of
+    the Q-network; tested), but calls the Q-network directly, which is much
+    faster for step-by-step evaluation.
+    """
 
     def __init__(self, model, config: dict[str, Any]):
+        import torch
+
+        self._torch = torch
         self.model = model
+        self.model.policy.set_training_mode(False)
         self.scale = np.asarray(config["dqn"]["obs_scale"], dtype=np.float32)
 
     def __call__(self, obs) -> int:
-        action, _ = self.model.predict(np.asarray(obs, dtype=np.float32) / self.scale, deterministic=True)
-        return int(action)
+        x = self._torch.as_tensor(np.asarray(obs, dtype=np.float32) / self.scale).unsqueeze(0)
+        with self._torch.no_grad():
+            q_values = self.model.q_net(x)
+        return int(q_values.argmax(dim=1).item())
 
 
 def _git_commit() -> str | None:

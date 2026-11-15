@@ -8,6 +8,9 @@ import pytest
 pytest.importorskip("stable_baselines3")
 
 from stable_baselines3 import DQN  # noqa: E402
+import torch  # noqa: E402
+
+torch.set_num_threads(1)  # tests run on the shared login node; keep them light
 
 from src.env import RestockEnv, load_config  # noqa: E402
 from src.train_dqn import (  # noqa: E402
@@ -159,3 +162,22 @@ def test_greedy_policy_returns_valid_actions(config):
         a = policy(obs)
         assert 0 <= a < 405
         obs, *_ = raw.step(a)
+
+
+def test_greedy_policy_matches_sb3_predict(config):
+    # Train briefly so Q-values are not all near zero, then compare the fast
+    # greedy path with SB3's predict(deterministic=True) on real observations.
+    small = dict(config)
+    small["dqn"] = dict(config["dqn"], buffer_size=5000, learning_starts=200)
+    env = make_training_env(small)
+    model = build_model(small, env, seed=1)
+    model.learn(total_timesteps=2000)
+    policy = GreedyDQNPolicy(model, small)
+    scale = np.array(small["dqn"]["obs_scale"], dtype=np.float32)
+    raw = RestockEnv(small)
+    obs, _ = raw.reset(seed=2)
+    rng = np.random.default_rng(0)
+    for _ in range(300):
+        expected, _ = model.predict(obs / scale, deterministic=True)
+        assert policy(obs) == int(expected)
+        obs, *_ = raw.step(int(rng.integers(405)))
