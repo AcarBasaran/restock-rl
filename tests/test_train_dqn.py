@@ -112,6 +112,13 @@ def test_config_hyperparameters_are_sb3_defaults(config):
     assert config["gamma"] == defaults["gamma"] == 0.99
     assert config["dqn"]["net_arch"] == [256, 256]
 
+    from stable_baselines3.dqn.policies import DQNPolicy
+
+    policy_defaults = {k: v.default for k, v in inspect.signature(DQNPolicy.__init__).parameters.items()}
+    assert config["dqn"]["activation_fn"] == policy_defaults["activation_fn"].__name__ == "ReLU"
+    assert config["dqn"]["optimizer"] == policy_defaults["optimizer_class"].__name__ == "Adam"
+    assert policy_defaults["optimizer_kwargs"] is None  # PyTorch's own Adam settings
+
 
 def test_built_model_uses_config(config):
     env = make_training_env(config)
@@ -121,6 +128,9 @@ def test_built_model_uses_config(config):
     assert model.target_update_interval == config["dqn"]["target_update_interval"]
     layers = [m for m in model.q_net.q_net if m.__class__.__name__ == "Linear"]
     assert [(l.in_features, l.out_features) for l in layers] == [(6, 256), (256, 256), (256, 405)]
+    assert all(m.__class__.__name__ == "ReLU" for m in model.q_net.q_net if m.__class__.__name__ != "Linear")
+    assert model.policy.optimizer.__class__.__name__ == "Adam"
+    assert model.policy.optimizer.defaults["eps"] == 1e-8
 
 
 # ----------------------------------------------------- truncation, not termination

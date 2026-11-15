@@ -85,15 +85,21 @@ def make_training_env(config: dict[str, Any], monitor_file: str | Path | None = 
 
 def build_model(config: dict[str, Any], env: gym.Env, seed: int, verbose: int = 0):
     """SB3 DQN with every hyperparameter from the config (D16)."""
+    import torch
     from stable_baselines3 import DQN
 
     dqn = config["dqn"]
     kwargs = {k: dqn[k] for k in SB3_KWARGS}
+    policy_kwargs = {
+        "net_arch": list(dqn["net_arch"]),
+        "activation_fn": getattr(torch.nn, dqn["activation_fn"]),
+        "optimizer_class": getattr(torch.optim, dqn["optimizer"]),
+    }
     return DQN(
         "MlpPolicy",
         env,
         gamma=float(config["gamma"]),
-        policy_kwargs={"net_arch": list(dqn["net_arch"])},
+        policy_kwargs=policy_kwargs,
         seed=int(seed),
         verbose=verbose,
         device="cpu",

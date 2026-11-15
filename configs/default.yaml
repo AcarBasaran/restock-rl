@@ -56,6 +56,8 @@ dqn:                  # Stable-Baselines3 DQN (D13–D17); gamma is the top-leve
   # years (53, 28, 21, 40, 28, 28), rounded up to the next multiple of 10. No clipping.
   obs_scale: [60, 30, 30, 40, 30, 30]
   net_arch: [256, 256]            # 2 x 256 MLP (D16)
+  activation_fn: ReLU             # SB3 DQN default (torch.nn.ReLU)
+  optimizer: Adam                 # SB3 DQN default (torch.optim.Adam, PyTorch default betas/eps)
   # Stable-Baselines3 DQN defaults (D16), written out so every hyperparameter is in the config.
   # tests/test_train_dqn.py checks they still equal the installed SB3's defaults.
   learning_rate: 0.0001

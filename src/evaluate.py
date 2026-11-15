@@ -4,9 +4,11 @@ Every policy is run on the same list of demand seeds, so all methods see the
 same customer demand and starting stock (Section 2). All values are in true
 reward units.
 
-Metric details are still OPEN (D19) and warm-up exclusion is OPEN (D18), so
-``warmup_days`` defaults to 0. Provisional choices are listed in
-notes/open-questions.md.
+Metrics follow D19 (undiscounted 365-day reward, fill rate per store and
+overall, average stock per location) and D18 (no warm-up exclusion, so
+``warmup_days`` defaults to 0). Two details are still open and use
+provisional choices: when average stock is measured (Q2) and how fill rates
+are pooled over years (Q3); see notes/open-questions.md.
 
 Usage (sanity check with simple policies):
     python -m src.evaluate --policy random --policy do_nothing
