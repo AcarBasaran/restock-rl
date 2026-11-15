@@ -96,7 +96,7 @@ The training runs used code at `e7a1664`, which is recorded in each `run.json`. 
 Cluster setup:
 
 - CPU partitions need account `users`, which I don't have.
-- The default account `comx29` can only use `t4_ai`, where a test submission estimated a start about 8.5 h later.
+- The default course account can only use `t4_ai`, where a test submission estimated a start about 8.5 h later.
 - I used account/partition/qos **`ai`** with 2 CPUs, 4G, no GPU, and a 3 h limit (Q14).
 - The venv lives at `/scratch/$USER/restock-rl/venv`, because `/home` is over quota (Q15).
 

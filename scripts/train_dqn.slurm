@@ -11,7 +11,7 @@
 #   sbatch --array=0 --time=00:15:00 --export=ALL,TIMESTEPS=50000,RUN_NAME=timing scripts/train_dqn.slurm
 #
 # Account/partition: the CPU partitions (short/mid/long) only accept account "users",
-# which this user does not have. The default account comx29 may only use t4_ai,
+# which this user does not have. The default course account may only use t4_ai,
 # where jobs were estimated to wait ~8.5 h. Account "ai" on partition "ai" starts
 # at once. No GPU is requested: a 2x256 MLP trains on CPU. See notes/open-questions.md.
 #SBATCH --job-name=restock-dqn

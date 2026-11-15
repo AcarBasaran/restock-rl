@@ -158,7 +158,7 @@ first day's demand.
 ## Q14 · D22 detail · Which SLURM account and partition?
 
 - The CPU partitions `short`/`mid`/`long` only accept account `users`, which
-  this user does not have. The default account `comx29` may only use
+  this user does not have. The default course account may only use
   `t4_ai` (GPU nodes, 8 h limit), where `sbatch --test-only` estimated a
   start ~8.5 h later for any job size. Account `ai` on partition `ai` (the
   account the user's other jobs were using tonight) starts at once.
@@ -166,7 +166,7 @@ first day's demand.
   Total use tonight: about 5 × 1 h × 2 CPUs.
 - **Question:** is the `ai` account fine for this course project, or should
   the team ask the admins for `users` access (CPU partitions) or run under
-  `comx29` on `t4_ai` and accept the wait? Switching is one line in
+  the default course account on `t4_ai` and accept the wait? Switching is one line in
   `scripts/train_dqn.slurm`.
 
 ## Q15 · new (infrastructure) · `/home` is over its quota
@@ -175,9 +175,9 @@ first day's demand.
   `/home` (not caused by this repo, which is ~2 MB). Writes there may start
   failing. VALAR's login message also asks to run active jobs from
   `/scratch/$USER`.
-- **Done tonight:** the venv now lives at `/scratch/ebasaran22/restock-rl/venv`
+- **Done tonight:** the venv now lives at `/scratch/$USER/restock-rl/venv`
   and `.venv` is a symlink to it (same path for D21); job outputs go to
-  `/scratch/ebasaran22/restock-rl/`; only small final artifacts (models of
+  `/scratch/$USER/restock-rl/`; only small final artifacts (models of
   ~1 MB, CSVs, plots) are copied into `results/`. `/scratch` is described as
   temporary, so anything worth keeping should not live only there.
 - **Suggested action:** free space in `/home`.
@@ -278,7 +278,7 @@ first day's demand.
 ## Q23 · D22 detail · The `ai` QOS is shared with your other jobs
 
 - QOS `ai` allows 8 running jobs per user (50 submitted). Your other
-  projects (`base-T1`, `g3-relrl`, `g1-eval`, `pool50k`, `inffrac`, ...) run
+  projects run
   on the same QOS, so tonight's 12 runs competed with them for those 8
   slots. I did not touch the other jobs.
 - **Question:** is that acceptable, or should restock-rl runs use fewer
