@@ -202,6 +202,21 @@ def plot_checkpoint_scores(round_data, baseline_reward: float, out: Path) -> Non
         ax.axhline(baseline_reward / 1000, color=TEXT_SECONDARY, linewidth=1.2, linestyle=(0, (5, 4)))
         _style(ax, VARIANT_LABELS[variant], "Training steps (millions)", "")
         ax.title.set_fontsize(9)
+    # Very early checkpoints can score far below zero and would flatten every
+    # line; clip the axis and mark those points at the bottom edge with their value.
+    floor = 0.0
+    for ax, variant in zip(axes, variants):
+        ax.set_ylim(floor, max(100.0, baseline_reward / 1000 + 4))
+        low = [(row["steps"], row["mean_total_reward"] / 1000) for r in round_data[variant]
+               for row in r["scores"] if row["mean_total_reward"] / 1000 < floor]
+        if low:
+            for steps, _ in low:
+                ax.scatter([steps / 1e6], [floor], marker="v", s=22, color=VARIANT_COLORS[variant],
+                           clip_on=False, zorder=4)
+            first = min(s for s, _ in low)
+            ax.annotate(f"{len(low)} early point(s) below 0, lowest {min(v for _, v in low):,.0f}k",
+                        xy=(first / 1e6, floor), xytext=(8, 6), textcoords="offset points",
+                        color=TEXT_SECONDARY, fontsize=7)
     axes[0].set_ylabel("Greedy reward on tuning years (thousands)", color=TEXT_SECONDARY, fontsize=9)
     axes[0].annotate(f"baseline {baseline_reward / 1000:.1f}k", xy=(axes[0].get_xlim()[0], baseline_reward / 1000),
                      xytext=(2, 4), textcoords="offset points", color=TEXT_SECONDARY, fontsize=8)

@@ -300,3 +300,42 @@ first day's demand.
   The "when" part is now decided (provisional) in D20. Section 2 needs
   approval to change, so it was left alone (same situation as Q16).
 - **Suggested change:** "Which reduction is open; when is decided; see D20."
+
+## Q26 · D18/D20 · What comes after tuning round 1?
+
+- V2 beat the baseline on the test years by +514 per year (+0.5%; better
+  in 49 of 50 years) with 3 seeds (see `notes/tuning-round-1.md`). D18
+  says 5 DQN training seeds; seeds 200003 and 200004 of V2 were not
+  trained.
+- The test years have now been used once for V2. Training two more V2
+  seeds and testing them would be a second use for the same configuration.
+- **Question:** is the 3-seed result the final DQN result, or should V2
+  get 5 seeds? If 5, how should the second use of the test years be
+  handled? Is tuning finished (D20's trigger did not fire)?
+- **Suggested default:** none; this needs a team decision.
+
+## Q27 · D19 · How to report a small difference
+
+- The gap is small in relative terms (0.5%) but very consistent: paired
+  per-year std 317, so the gap is about 11 standard errors.
+- **Question:** which uncertainty goes in the report? Options: the spread
+  across seeds (± 80), paired per-year differences, or both. Is a formal
+  test wanted?
+- **Suggested default:** report both: mean ± std across seeds, and the
+  paired per-year difference with the number of years DQN is better.
+
+## Q28 · Section 2 / D8 · Is the order-up-to baseline strong enough for a 0.5% claim?
+
+- DQN's gain comes from holding less stock at the depot and more on the
+  store shelves. Under D8 the baseline's depot rule ignores store stock,
+  and the targets move in grid steps (depot 10, stores 4), so the baseline
+  may be leaving some of that on the table.
+- This is a question, not a proposal to change the settled baseline
+  (Section 2, D8–D12). Any change needs a team decision.
+- **Question:** is the comparison against the settled baseline enough for
+  the report? Or should the report discuss this limitation, or add a
+  stronger heuristic as an extra reference?
+
+**Status of Q24 (night 3):** the best tuned DQN is above the baseline on
+the tuning years (97,027 vs 96,525), so the "clearly below" threshold did
+not matter this round. It is still undefined.
