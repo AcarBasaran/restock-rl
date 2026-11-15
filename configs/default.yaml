@@ -1,0 +1,43 @@
+# All numbers used by the code. Sources: CLAUDE.md Section 2 (settled spec)
+# and Section 3 decisions D1–D12. Change only with a team decision.
+
+episode_length: 365   # days per simulated year; end of year is a truncation, not a terminal state
+gamma: 0.99           # discount factor (Section 2)
+
+demand_mean:          # Poisson mean, units per day (Section 2)
+  store_a: 20
+  store_b: 10
+
+lead_time:            # days; an order placed at the end of day t arrives at the start of day t+L (D1)
+  depot: 2            # supplier -> depot
+  store_a: 1          # depot -> Store A
+  store_b: 3          # depot -> Store B
+
+initial_stock_mean:   # Poisson mean of the starting stock, equal to one day's demand (D6)
+  depot: 30
+  store_a: 20
+  store_b: 10
+
+price: 10             # reward per unit sold (Section 2)
+
+holding_cost:         # per unit left at the end of the day, after shipments leave (Section 2, D3)
+  depot: 1
+  store_a: 2
+  store_b: 2
+
+actions:              # 5 x 9 x 9 = 405 discrete actions (Section 2)
+  depot_order: [0, 10, 20, 30, 40]
+  ship_store_a: [0, 4, 8, 12, 16, 20, 24, 28, 32]
+  ship_store_b: [0, 4, 8, 12, 16, 20, 24, 28, 32]
+
+seeds:
+  # Demand seeds. Ranges must never overlap.
+  sanity: {start: 0, count: 5}            # quick sanity checks only
+  tuning: {start: 100000, count: 20}      # baseline grid search (D12: about 20 years per candidate)
+  test: {start: 900000, count: null}      # final evaluation; count is OPEN (D18)
+  # DQN training seeds: OPEN (D18), not defined yet.
+
+grid_search:          # baseline targets (D12); ranges are inclusive
+  depot_target: {start: 30, stop: 200, step: 10}
+  store_a_target: {start: 20, stop: 80, step: 4}
+  store_b_target: {start: 20, stop: 80, step: 4}
