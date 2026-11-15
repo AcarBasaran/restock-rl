@@ -7,15 +7,16 @@ Team of three students. This repo compares a DQN agent against a tuned order-up-
 
 ## 0. The most important rule
 
-This is a team project. Some design choices are **not settled** and must be agreed by the whole team. Making them on your own creates conflicts later.
+This is a team project. Many design choices are **not settled** and must be agreed by the whole team. Making them on your own creates conflicts later.
 
-- Section 2 is the **settled specification**. Implement it exactly. Do not "improve" it, simplify it, or add costs, constraints, or features to it.
+- Section 2 is the **settled specification**, taken from the team's project proposal. Implement it exactly. Do not "improve" it, simplify it, or add costs, constraints, or features to it.
 - Section 3 lists **open decisions**. For any item marked `OPEN`:
   - **Stop and ask the user before writing any code that depends on it.** Name the decision by its ID (e.g. "D4 is still open").
-  - Do **not** silently implement the suggested default. The default is only there to make the discussion faster.
-  - Do **not** write code that hides the choice behind a guess. A config option is fine only after the user confirms it should be a config option.
-  - When the user answers, they will update this file to `DECIDED: <answer>`. Treat only what is written here as decided, not something said earlier in a session.
+  - Do **not** silently implement the suggested default. Defaults are only there to make the discussion faster.
+  - Do **not** hide the choice behind a guess. Making something a config option is fine only after the user confirms that approach.
+  - When a decision is made, the user updates this file to `DECIDED: <answer>`. Treat only what is written in this file as decided, not something said earlier in a session.
 - Items tagged **[team]** need a team discussion; the user will come back with an answer. Items tagged **[Acar]** the user can answer directly.
+- Sections 5 and 6 contain **proposals**, not team decisions (see D25). Follow them only as a starting point and ask before relying on them in a way that is hard to change later.
 - If you notice a new ambiguity that is not listed here and that changes results, behavior, or the comparison, treat it as `OPEN`: stop, describe it, and propose adding it to Section 3.
 - If something in the settled spec looks wrong to you, say so and explain why, but do not change it without the user's approval.
 
@@ -25,58 +26,65 @@ This is a team project. Some design choices are **not settled** and must be agre
 
 Research question: in a two-store system where the stores differ in demand level and delivery time, can DQN achieve higher profit than a simple, properly tuned order-up-to policy?
 
-No external dataset is used. The environment simulator generates all experience; Poisson demand is drawn from seeded random number generators.
+No external dataset is used. The environment simulator generates all experience; customer demand is drawn from a Poisson distribution.
+
+Tools named in the proposal: Python; PyTorch or Stable-Baselines3 (see D13); the team's own computers or Google Colab (see D22).
 
 ---
 
-## 2. Settled specification (implement exactly)
+## 2. Settled specification (from the proposal — implement exactly)
 
 **Network**
 - One supplier → one depot → two stores (A and B).
-- Supplier → depot lead time: 2 days.
-- Depot → Store A lead time: 1 day. Store A demand: Poisson, mean 20 per day.
-- Depot → Store B lead time: 3 days. Store B demand: Poisson, mean 10 per day.
-- Lost sales: unmet demand is lost and not carried over. Lost demand is recorded for analysis but is **not** part of the observation.
+- Supplier → depot delivery time: 2 days.
+- Depot → Store A delivery time: 1 day. Store A demand: Poisson, mean 20 per day.
+- Depot → Store B delivery time: 3 days. Store B demand: Poisson, mean 10 per day.
+- Lost sales: unmet demand is lost and not carried over to the next day.
+- The number of lost customer orders is recorded for analysis but is **not** shown to the agent.
 
 **Daily sequence**
-1. Previously placed orders and shipments that are due arrive.
-2. Customer demand at each store is realized and met from store stock.
-3. At the end of the day, the agent decides the depot order and the shipments to each store.
+1. Previously placed orders and deliveries arrive.
+2. Customer demand is met.
+3. At the end of the day, the agent decides the new depot order and the shipments to each store.
 
 **Observation / state (6 values)**
 1. Depot stock
 2. Store A stock
 3. Store B stock
-4. Depot order arriving tomorrow
+4. Depot order arriving the next day
 5. Store B shipment arriving in 1 day
 6. Store B shipment arriving in 2 days
 
-There is no pending-shipment variable for Store A. Demand is i.i.d., so this state is Markov.
+There is no pending-shipment variable for Store A, since its delivery time is one day. Daily demand does not depend on the past, so this state is Markov.
 
 **Actions (405 discrete)**
 - Depot order from the supplier: {0, 10, 20, 30, 40}.
 - Shipment to Store A: {0, 4, 8, …, 32}.
 - Shipment to Store B: {0, 4, 8, …, 32}.
-- If depot stock is insufficient for both requested shipments, available stock is split **proportionally** between the requested amounts. The rounding rule is open; see D4.
+- If depot stock is not enough for both requested shipments, the available stock is divided **proportionally** between the requested amounts. The rounding rule is open; see D4.
 
 **Reward**
 - +10 per unit sold.
-- Holding cost: 2 per unit left in stock at each store, 1 per unit left at the depot, charged at the end of the day. The exact timing is open; see D3.
+- At the end of the day: holding cost 2 per unit remaining at each store, 1 per unit remaining at the depot. The exact timing relative to shipping is open; see D3.
 - **No other costs.** No purchase cost, no fixed ordering or shipping cost, no lost-sales penalty. Do not add any.
 
 **Objective and task type**
-- Maximize discounted return with γ = 0.99.
-- Continuing task. Training and evaluation run in 365-day periods, but day 365 is **not** terminal. In Gymnasium, end-of-period must be `truncated=True`, never `terminated=True`, so DQN bootstraps at the cutoff.
-- Initial inventories are low and random. The range is open; see D6. Pending deliveries start at zero.
+- Maximize long-term total reward with discount factor γ = 0.99.
+- Continuing task. Training and evaluation use 365-day periods, but the end of the year is **not** a terminal state. Whatever framework is used, the cutoff must be treated as a time-limit truncation (e.g. `truncated=True` in Gymnasium, never `terminated=True`), so value targets still bootstrap at the cutoff.
+- Initial inventories are low and random; the exact range is open, see D6. Pending deliveries start at zero.
 
 **Baseline**
-- An order-up-to policy: when inventory position (stock + pending deliveries) is below the target, order the difference. Targets are tuned by grid search. Details are open; see D8–D12.
+- A simple order-up-to policy: whenever stock plus pending deliveries falls below a target level, order the difference. Target levels are set by grid search for a fair comparison. Details are open; see D8–D12.
 
 **Evaluation (settled parts)**
-- Both methods face identical demand sequences and initial stocks (common random numbers via fixed seeds).
-- Train, tune, and test seeds are disjoint.
-- Metrics: total profit over 365 days, fill rate, and average stock levels.
-- DQN is run with several random seeds and results are averaged.
+- Main metric: cumulative reward (profit) over 365 days.
+- Also measured: fill rate (percentage of customer demand met) and average stock levels.
+- Both methods are tested with the same customer demands and initial stocks.
+- DQN is run with several random seeds and results are averaged. The number is open; see D18.
+
+**Fallback (settled in principle)**
+- If DQN training is unstable or too slow, the scope can be reduced, either by reducing the number of actions or by focusing only on distribution between stores. Which reduction and when is open; see D20.
+- Demand and cost values may be updated after first trials. Any such change is a team decision.
 
 ---
 
@@ -84,26 +92,26 @@ There is no pending-shipment variable for Store A. Demand is i.i.d., so this sta
 
 Format: ID · tag · status · question · suggested default (NOT approved).
 
-### Environment dynamics
+### Environment rules
 
-- **D1** · [team] · `OPEN` · Lead-time convention.
-  Default: an order placed at the end of day t arrives at the start of day t+L (depot t+2, A t+1, B t+3), consistent with the state definition.
+- **D1** · [team] · `OPEN` · Delivery-time convention.
+  Default: an order placed at the end of day t arrives at the start of day t+L (depot t+2, A t+1, B t+3), which matches the state definition.
 - **D2** · [team] · `OPEN` · When shipped units leave depot stock.
-  Default: they are deducted immediately at decision time.
+  Default: deducted immediately at decision time.
 - **D3** · [team] · `OPEN` · When holding cost is charged: after sales but before shipping, or after shipments leave the depot? In-transit units are not charged in either case.
   Default: after shipments leave.
 - **D4** · [team] · `OPEN` · Integer rounding in the proportional split.
   Default: floor each store's share; leftover units stay at the depot.
 - **D5** · [team] · `OPEN` · Stock caps: none, observation clipping only, or hard caps on inventory (e.g. 100 depot / 50 per store)?
   Default: no caps in the dynamics; clip the observation for the network only.
-- **D6** · [team] · `OPEN` · Initial inventory distribution.
+- **D6** · [team] · `OPEN` · Initial inventory distribution ("low and random").
   Default: depot uniform on 0–20, each store uniform on 0–10.
 - **D7** · [team] · `OPEN` · Supplier reliability.
   Default: unlimited supply, full orders always delivered on time.
 
-### Baseline
+### Baseline design
 
-- **D8** · [team] · `OPEN` · What the depot's inventory position counts: depot stock + depot pipeline only, or echelon (also store stock and depot→store pipeline)?
+- **D8** · [team] · `OPEN` · What the depot's "stock plus pending deliveries" counts: depot stock + depot pipeline only, or echelon (also store stock and depot→store pipeline)?
   Default: depot stock + depot pipeline.
 - **D9** · [team] · `OPEN` · Store shipment rule.
   Default: ship each store up to its own target, counting store stock + shipments already on the way.
@@ -111,41 +119,47 @@ Format: ID · tag · status · question · suggested default (NOT approved).
   Default: rounded to the same grid.
 - **D11** · [team] · `OPEN` · Whether the baseline uses the same proportional split when the depot is short.
   Default: yes.
-- **D12** · [team] · `OPEN` · Grid search ranges for the three targets and the number of simulated years per candidate.
-  Default: ~20 years per candidate on tuning seeds.
+- **D12** · [team] · `OPEN` · Grid search ranges for the targets and the number of simulated years per candidate.
+  Default: ~20 years per candidate.
 
-### DQN
+### DQN setup
 
-- **D13** · [team] · `OPEN` · Stable-Baselines3 DQN or a custom PyTorch implementation.
-  Default: SB3 first.
+- **D13** · [team] · `OPEN` · Stable-Baselines3 DQN or a custom PyTorch implementation (both named in the proposal). This also decides whether the environment follows the Gymnasium API.
+  Default: SB3 first, with a Gymnasium environment.
 - **D14** · [team] · `OPEN` · Action handling: flat 405 actions, action masking, or a factored head.
   Default: flat, no masking.
 - **D15** · [team] · `OPEN` · Training budget per seed.
   Default: 1–2M steps for the first run.
 - **D16** · [team] · `OPEN` · Hyperparameters (network size, learning rate, ε schedule, buffer size).
-  Default: SB3 defaults with a 2×256 MLP; every change is recorded in the config.
+  Default: SB3 defaults with a 2×256 MLP; every change recorded.
 - **D17** · [team] · `OPEN` · Reward scaling during training.
-  Default: divide by 100 for training only; always report true profit.
+  Default: divide by 100 for training only; always report true reward.
 
-### Evaluation
+### Evaluation protocol
 
-- **D18** · [team] · `OPEN` · Number of test years, number of DQN seeds, warm-up exclusion.
-  Default: 50 test years, 5 seeds, first 30 days excluded from metrics.
+- **D18** · [team] · `OPEN` · Number of test years, number of DQN seeds, warm-up exclusion, and whether train / tuning / test demand seeds are kept separate.
+  Default: 50 test years, 5 seeds, first 30 days excluded from metrics, separate seed ranges for training, grid search, and testing.
 - **D19** · [team] · `OPEN` · Metric details.
-  Default: undiscounted 365-day profit; fill rate per store and overall; average stock per location.
-- **D20** · [team] · `OPEN` · When to fall back to the reduced scope (depot with unlimited stock, 81 actions).
-  Default: if DQN cannot match the baseline after 2 tuning rounds.
+  Default: undiscounted 365-day reward; fill rate per store and overall; average stock per location.
+- **D20** · [team] · `OPEN` · Which scope reduction to use if needed, and when to trigger it.
+  Options from the proposal: fewer actions, or distribution between stores only.
+  Default trigger: DQN cannot match the baseline after 2 tuning rounds.
 
-### Setup and workflow
+### Setup
 
 - **D21** · [Acar] · `OPEN` · Python version and environment tool.
   Default: Python 3.11, venv, `requirements.txt`.
-- **D22** · [Acar] · `OPEN` · Where training runs: laptops, Colab, or the VALAR cluster. If VALAR, SLURM scripts are needed.
-  Default: develop locally, run full experiments on VALAR.
+- **D22** · [Acar] · `OPEN` · Where training runs: own computers, Colab, or the VALAR cluster. If VALAR, SLURM scripts are needed.
+  Default: develop locally, decide on full experiment compute later.
 - **D23** · [Acar] · `OPEN` · Logging.
   Default: TensorBoard + CSV.
-- **D24** · [team] · `OPEN` · Module ownership: who owns env, baseline, DQN.
+
+### Team workflow
+
+- **D24** · [team] · `OPEN` · Module ownership: who works on env, baseline, DQN.
   Until decided, ask before editing any file outside the task you were given.
+- **D25** · [team] · `OPEN` · Repository layout and engineering conventions in Sections 5–6 (folder structure, config file format, required tests).
+  These are proposals, not team decisions.
 
 ---
 
@@ -154,27 +168,27 @@ Format: ID · tag · status · question · suggested default (NOT approved).
 These do not change results or the comparison. Decide them, and mention what you chose in your summary:
 - Code structure inside a module, function and variable names, docstrings, type hints.
 - Test design and additional tests.
-- Plot styling and helper utilities.
+- Plot styling and small helper utilities.
 - Refactors that keep behavior identical (confirm with tests).
 
 When unsure whether something belongs here or in Section 3, assume Section 3 and ask.
 
 ---
 
-## 5. Repository layout (target)
+## 5. Repository layout (proposed — see D25)
 
 ```
 restock-rl/
 ├── CLAUDE.md
 ├── README.md
 ├── requirements.txt
-├── configs/default.yaml     # every number from Section 2 lives here
+├── configs/                 # all numbers from Section 2
 ├── src/
-│   ├── env.py               # Gymnasium environment
+│   ├── env.py               # environment
 │   ├── baseline.py          # order-up-to policy + grid search
 │   ├── train_dqn.py
-│   └── evaluate.py          # common-random-number evaluation, metrics
-├── tests/test_env.py
+│   └── evaluate.py          # same-demand evaluation, metrics
+├── tests/
 ├── results/                 # gitignored
 └── notebooks/
 ```
@@ -185,22 +199,26 @@ Do not create new top-level folders without asking.
 
 ## 6. Engineering rules
 
-- **No hardcoded numbers.** Demand means, lead times, costs, action grids, γ, and seeds all come from `configs/default.yaml`.
-- **Environment first, with tests.** Before any training code, `tests/test_env.py` must cover:
-  - one hand-traced day with fixed demand
-  - the pipeline shifting correctly for depot, A, and B
-  - the proportional split
-  - reward computation
-  - `truncated` vs `terminated` at day 365
-- **Seeding.** The environment takes a seed. Evaluation demand must be reproducible from seeds alone. Do not store demand files.
-- **Never report scaled rewards as results.** Results are always in true profit units.
+**Firm rules (always follow):**
+- Never change the settled spec in Section 2 without the user's approval.
 - **Git.**
-  - Work on a feature branch.
-  - Never commit to `main`, never push, never force-push, and never rewrite history without explicit permission.
+  - Never commit to `main`, push, force-push, or rewrite history without explicit permission.
   - Keep commits small with clear messages.
 - **Dependencies.** Ask before adding any package not already in `requirements.txt`.
 - **Large files.** Never commit trained models, logs, or `results/`.
+- **Reporting.** Results are always reported in true reward units, never scaled values.
+- **Reproducibility.** Demand must be reproducible, so both methods can be tested on the same demands (Section 2). Use seeded random number generators. Do not store demand data files unless asked.
 - Code and comments in English.
+
+**Proposed conventions (see D25 — ask before relying on them):**
+- Keep demand means, delivery times, costs, action grids, γ, and seeds in a config file instead of hardcoding them.
+- Build and test the environment before any training code. Tests should cover:
+  - one hand-traced day with fixed demand
+  - pipeline shifting for depot, A, and B
+  - the proportional split
+  - reward computation
+  - truncation at day 365
+- Work on a feature branch per task.
 
 ---
 
