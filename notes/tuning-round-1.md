@@ -1,6 +1,8 @@
 # DQN tuning round 1 (night 3)
 
-**Result in one line: reward centering closed the gap. On the tuning years the three centered variants match or slightly beat the baseline, while the uncentered V0 stays about 7% below. The selected variant (V2), evaluated once on the 50 test years, earns 97,128 ± 80 per year against the baseline's 96,614 (+514, +0.5%). It is better in 49 of 50 years.**
+**Result in one line: reward centering closed the gap. On the tuning years the three centered variants match or slightly beat the baseline, while the uncentered V0 stays about 7% below. The selected variant (V2), trained with 5 seeds as D18 requires, earns 97,108 ± 72 per year on the 50 test years against the baseline's 96,614 (+494, +0.5%). The 5-seed average is better in 47 of 50 years, and every seed is better on average.**
+
+*Update: V2 was extended from 3 to 5 seeds (Q26, decided in D18). The variant selection below still uses the 3 seeds per variant of the round. The 5-seed test result is in the section "Test years: all 5 V2 seeds".*
 
 ## What was run (decided in advance: D16, D18, D20)
 
@@ -90,6 +92,49 @@ V2's three selected checkpoints (600k, 1,000k, 900k), greedy, on the 50 test yea
 
 Raw output (not committed) is in `results/tuning1/20261115-114254_test/`: `test.md`, `test.json`, per-year CSVs and the three checkpoints. There is also a marker file at `/scratch/$USER/restock-rl/runs/tuning1/TEST_EVALUATED.json`.
 
+## Test years: all 5 V2 seeds (D18; Q26)
+
+- **Extra runs:** two more V2 seeds, 200003 and 200004.
+  - Same setup as the other V2 runs: commit `bc48e5c`, V2 config, 2M steps, a checkpoint every 100k steps.
+  - One packed SLURM job, 2025389.
+- **Checkpoint choice:** each run's best checkpoint was picked on the tuning years by the same rule.
+  - Seed 200003: 1,400k (96,942 on the tuning years).
+  - Seed 200004: 700k (97,035).
+- **No new selection:** the variant stays V2, and the 3 earlier checkpoints are unchanged. Only these 2 checkpoints were evaluated, once, on the same 50 test years.
+- **Command:** `python -m src.tuning test-extra-seeds`. It checks variant, config, steps, seeds and tuning-year selection before running, and refuses a second run.
+
+| Metric (50 test years) | **V2, mean ± std over all 5 seeds** | V2, first 3 seeds | Baseline (60 / 24 / 32) |
+|---|---|---|---|
+| 365-day reward | **97,108 ± 72** | 97,128 ± 80 | 96,614 |
+| Fill rate A | 96.5% ± 0.6% | 96.2% ± 0.5% | 95.6% |
+| Fill rate B | 93.2% ± 0.6% | 93.0% ± 0.4% | 92.7% |
+| Fill rate overall | 95.4% ± 0.5% | 95.1% ± 0.4% | 94.6% |
+| Avg stock depot | 1.5 ± 0.3 | 1.3 ± 0.3 | 4.2 |
+| Avg stock A | 4.8 ± 0.4 | 4.7 ± 0.4 | 4.0 |
+| Avg stock B | 4.8 ± 0.3 | 4.6 ± 0.1 | 3.8 |
+
+| Training seed | Checkpoint (picked on tuning years) | Tuning-year reward | Test-year reward | Mean difference vs baseline | Test years better than baseline |
+|---|---|---|---|---|---|
+| 200000 | 600k | 97,002 | 97,036 | +422 | 44 of 50 |
+| 200001 | 1,000k | 97,061 | 97,181 | +567 | 49 of 50 |
+| 200002 | 900k | 97,017 | 97,166 | +552 | 47 of 50 |
+| 200003 | 1,400k | 96,942 | 97,029 | +415 | 44 of 50 |
+| 200004 | 700k | 97,035 | 97,129 | +514 | 46 of 50 |
+
+- **Paired** (same test year, V2 averaged over the 5 seeds, minus baseline): **+494 per year**, std 316 across years. That is a standard error of about 45, so the gap is about 11 standard errors. The 5-seed average is better in 47 of 50 years.
+- **Where the gain comes from** (5-seed mean vs baseline, per year):
+
+  | | Change per year |
+  |---|---|
+  | Revenue | +834 |
+  | Lost sales, Store A | −66 units |
+  | Lost sales, Store B | −17 units |
+  | Holding cost | +340 |
+
+  With all 5 seeds, the gain comes from selling more (about 83 fewer lost units per year, mostly at Store A). The extra sales outweigh a somewhat higher holding bill. The first 3 seeds alone happened to have almost unchanged holding cost (+7.5); seeds 200003–4 hold a bit more stock.
+- On the tuning years, the 5 checkpoints average 97,011, against the baseline's 96,525 (+486). That is in line with the test-year gap.
+- Raw output (not committed) is in `results/tuning1/20261115-125536_test_extra_seeds/`, with a marker at `/scratch/$USER/restock-rl/runs/tuning1/TEST_EVALUATED_EXTRA_SEEDS.json`.
+
 ## Honest assessment
 
 **Tuning closed the gap, and the decisive change was reward centering.**
@@ -100,14 +145,13 @@ Raw output (not committed) is in `results/tuning1/20261115-114254_test/`: `test.
 
 This fits last night's main hypothesis. Without centering, every Q-value carries a large common offset (about 264 / (1 − γ)), and the small differences between actions get lost in it. That would make the greedy action unstable.
 
-**V2's lead is real but small**: +0.5% profit, in 49 of 50 test years.
+**V2's lead is real but small.** With all 5 seeds it is +494 per year (+0.5% profit). The 5-seed average is better in 47 of 50 test years, and every seed is better on average (+415 to +567).
 
 **Limits:**
-- Only 3 seeds, not the 5 in D18 (Q26).
 - Selection used 20 checkpoints × 4 variants on the tuning years. The test result agrees, though.
 - The baseline is the simple order-up-to rule as decided (D8–D12); for example, the depot ignores store stock. A stronger heuristic might close or reverse a 0.5% gap (Q28).
 
-So the answer to the research question is currently "DQN can slightly beat a properly tuned order-up-to policy in this setup, by about 0.5%, mainly by holding less stock at the depot and more on store shelves". It is not "DQN is much better".
+So the answer to the research question is currently "DQN can slightly beat a properly tuned order-up-to policy in this setup, by about 0.5%". It does this mainly by losing fewer sales: it keeps less stock at the depot and more on the store shelves, and accepts a slightly higher holding cost. It is not "DQN is much better".
 
 **On D20:** the best tuned DQN isn't below the baseline on the tuning years, so the provisional trigger for a scope reduction hasn't fired. Whether to stop tuning here is a team decision (Q24, Q26).
 
@@ -123,5 +167,6 @@ So the answer to the research question is currently "DQN can slightly beat a pro
 | 2024446_0–2 | V3, seeds 200000–200002 | — | CANCELLED while pending (re-packed) | — |
 | 2024734 | V2, seeds 200001–200002, packed (2 processes, 1 core each) | ai01 | COMPLETED | 0:56:59 |
 | 2024733 | V3, seeds 200000–200002, packed (3 processes, 1 core each) | ai01 | COMPLETED | 0:55:25 |
+| 2025389 | V2, extra seeds 200003–200004, packed (2 processes, 1 core each; Q26) | ai01 | COMPLETED | 0:49:27 |
 
 No job failed. Scoring 20 checkpoints took about 13 s per run. Wall clock was 09:53 (timing job) to 11:40 (last packed job). The summary (5 s) and the test evaluation (23 s) ran on the login node.

@@ -303,6 +303,8 @@ first day's demand.
 
 ## Q26 · D18/D20 · What comes after tuning round 1?
 
+**Status: decided (provisional) in D18.** V2 gets 5 seeds. Seeds 200003–4 were trained and tested once. Result over all 5 seeds: 97,108 ± 72 vs 96,614 (`notes/tuning-round-1.md`). Whether tuning is finished is still a team call (D20).
+
 - V2 beat the baseline on the test years by +514 per year (+0.5%; better
   in 49 of 50 years) with 3 seeds (see `notes/tuning-round-1.md`). D18
   says 5 DQN training seeds; seeds 200003 and 200004 of V2 were not

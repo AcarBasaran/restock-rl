@@ -4,6 +4,8 @@ Branch `feature/env-baseline`. Pushed to GitHub and open as PR #6 into `main`, n
 
 ## Headline
 
+> **Update after this report:** V2 was extended to 5 seeds (Q26, D18). Over all 5 seeds on the test years it earns **97,108 ± 72** vs 96,614 (+494 per year, better in 47 of 50 years; job 2025389). See `notes/tuning-round-1.md`. The 3-seed numbers below are kept as they were reported.
+
 **Reward centering closed the gap.** The selected variant (V2: centering + learning rate 5e-5, target update every 20k steps, batch 128) earns **97,128 ± 80** per year on the 50 test years (3 seeds, best checkpoints selected on the tuning years). The tuned baseline earns **96,614**. That is +514 per year (+0.5%), and V2 is better in 49 of 50 years. Details are in `notes/tuning-round-1.md`.
 
 **Tuning years** (selection), best checkpoint per seed, mean ± std over 3 seeds:
