@@ -152,8 +152,8 @@ Note: the baseline involves no learning. Only its three target numbers (depot, S
 
 ### Setup
 
-- **D21** · [Acar] · `OPEN` · Python version and environment tool.
-  Default: Python 3.11, venv, `requirements.txt`.
+- **D21** · [Acar] · `DECIDED` · Python version and environment tool.
+  DECIDED: a Python virtual environment in `.venv` with `requirements.txt`, using the Python available on this machine (must be 3.10 or newer). On the VALAR login node the system `python3` is 3.6.8 (too old), so the venv is built from the `anaconda3/2025.06` module's Python 3.13.9 (`/opt/ohpc/pub/compiler/anaconda3/2025.06/bin/python`).
 - **D22** · [Acar] · `OPEN` · Where training runs: own computers, Colab, or the VALAR cluster. If VALAR, SLURM scripts are needed.
   Default: develop locally, decide on full experiment compute later.
 - **D23** · [Acar] · `OPEN` · Logging.
@@ -163,8 +163,8 @@ Note: the baseline involves no learning. Only its three target numbers (depot, S
 
 - **D24** · [team] · `OPEN` · Module ownership: who works on env, baseline, DQN.
   Until decided, ask before editing any file outside the task you were given.
-- **D25** · [team] · `OPEN` · Repository layout and engineering conventions in Sections 5–6 (folder structure, config file format, required tests).
-  These are proposals, not team decisions.
+- **D25** · [team] · `DECIDED` (starting point) · Repository layout and engineering conventions in Sections 5–6 (folder structure, config file format, required tests).
+  DECIDED as a starting point: use the layout and conventions in Sections 5–6 (`configs/`, `src/`, `tests/`, one config file for all numbers, environment tests first, a feature branch per task). Teammates can object.
 
 ---
 

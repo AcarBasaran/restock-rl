@@ -23,3 +23,8 @@ These decisions were made during planning and are not in the proposal. If you di
 - Like DQN's actions, baseline quantities are rounded to the nearest truck size: depot orders in multiples of 10 (max 40, big trucks from the supplier) and store shipments in multiples of 4 (max 32, small trucks from the depot), with ties rounded up (6 → 8, 25 → 30) because shipping slightly more is the safer side. [D10]
 - The three targets are tuned by grid search (store targets 20–80 in steps of 4, depot target 30–200 in steps of 10, about 20 simulated years per combination on tuning seeds separate from the test seeds), widening any range whose best value lands on its edge, allowing a coarse pass then a finer pass around the best values if the full grid is too slow, and reporting the chosen targets. [D12]
 - When the depot is short, the baseline gets the same round-down proportional split as DQN, applied automatically by the environment. [D11]
+
+### Setup
+
+- The repository follows the layout and conventions proposed in CLAUDE.md Sections 5–6 (`configs/`, `src/`, `tests/`, one config file for all numbers, environment tests first, one feature branch per task) as a starting point that teammates can still object to. [D25]
+- Code runs in a Python virtual environment in `.venv` with packages from `requirements.txt`, built from a Python 3.10 or newer on the machine (on the VALAR login node: the `anaconda3/2025.06` module's Python 3.13.9, since the system `python3` is 3.6). [D21]
