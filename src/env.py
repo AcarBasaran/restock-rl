@@ -25,8 +25,7 @@ stock (D6) with nothing in transit, before any demand. One simulated year
 is ``episode_length`` (365) steps, after which ``truncated=True``; the
 episode is never ``terminated`` (continuing task).
 
-NOTE: this step/day boundary is a provisional implementation choice that
-the spec does not pin down; see notes/open-questions.md (Q1).
+This step/day boundary is decision D26 (provisional; was open question Q1).
 """
 
 from __future__ import annotations

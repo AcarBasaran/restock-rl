@@ -1,11 +1,14 @@
-# Open questions from the overnight run
+# Open questions
 
-Nothing here was decided. Where code needed *some* behavior to run, it
-uses the suggested default below, marked as provisional in the code. Each
-item names the related decision ID, or "new" if it is not in CLAUDE.md yet
+Logged during the overnight runs. Items still open are not decided; where code needed some behavior, it uses the suggested default, marked provisional.
+Still open after night 2: Q2, Q3, Q6, Q7, Q10, and everything from Q12 on.
+
+Each item names the related decision ID, or "new" if it is not in CLAUDE.md yet
 (I propose adding those to Section 3).
 
 ## Q1 · new · How does one environment step map onto the day, and what happens on the first day?
+
+**Status: DECIDED** as D26 (provisional, by Acar): keep the current step boundaries.
 
 The spec gives the daily order (arrivals → demand → decision) and says the
 state is observed at the decision point, but not where a Gymnasium step
@@ -48,6 +51,8 @@ first day's demand.
 
 ## Q4 · D18 · Test and training seed ranges
 
+**Status: partly decided** by D18: 50 test years from the test range (seeds 900000–900049), 5 DQN training seeds. The DQN training seed *values* are still not decided; see Q12.
+
 - `configs/default.yaml` reserves test seeds starting at 900000 but leaves
   the count empty, so code refuses to run on the test range until D18 is
   decided. No DQN training seed range is defined.
@@ -56,6 +61,8 @@ first day's demand.
   demand seeds from 200000 upward; network/exploration seeds 1–5.
 
 ## Q5 · D18 · Warm-up exclusion
+
+**Status: DECIDED** by D18: no warm-up exclusion.
 
 - `evaluate.py` takes `warmup_days` (default 0). The D18 default (drop the
   first 30 days) conflicts with the settled main metric "profit over 365
@@ -83,12 +90,16 @@ first day's demand.
 
 ## Q8 · D16 sub-item · Observation scaling and clipping
 
+**Status: DECIDED** by D16: divide each feature by a fixed constant from the config, chosen from baseline runs. The exact rule for picking the constants is Q13.
+
 - The environment returns raw, unbounded unit counts (D5), so Gymnasium's
   checker warns that the observation upper bound is infinite. This is
   intended; how the network sees the values is part of the open D16
   sub-item. Nothing was done here.
 
 ## Q9 · D22 · Where does heavy compute run?
+
+**Status: DECIDED** by D22: training only as SLURM jobs.
 
 - The grid search ran on the VALAR login node (`login01`, no SLURM job), with
   4 worker processes at lowered priority, because the whole grid takes only
@@ -105,6 +116,8 @@ first day's demand.
 - **Suggested change:** update those three phrases to point to D25.
 
 ## Q11 · new (D21 follow-up) · Same demand on every teammate's machine
+
+**Status: DECIDED** in D21: minimum Python 3.12.
 
 - Demand is reproducible from the seed, but NumPy does not promise the
   same random stream across versions. `requirements.txt` pins

@@ -108,6 +108,8 @@ Format: ID · tag · status · question · suggested default (NOT approved).
   DECIDED: initial inventories are drawn from Poisson distributions with means equal to one day's demand: depot 30, Store A 20, Store B 10. Pending deliveries start at zero.
 - **D7** · [team] · `DECIDED` · Supplier reliability.
   DECIDED: the supplier is unlimited and always delivers full orders on time.
+- **D26** · [Acar] · `DECIDED (provisional)` · How one environment step maps onto the day (was open question Q1).
+  DECIDED (provisional, decided by Acar; team can object): `reset()` returns the decision point of day 0 (random starting stock, nothing in transit, no demand yet). Each step applies the decision of day t, charges day t's holding cost after shipments leave, then simulates day t+1's arrivals and demand. Step reward = 10 × units sold on day t+1 − holding cost of day t. A 365-step year counts holding on days 0–364 and sales on days 1–365.
 
 ### Baseline design
 
@@ -126,26 +128,24 @@ Note: the baseline involves no learning. Only its three target numbers (depot, S
 
 ### DQN setup
 
-- **D13** · [team] · `PARTLY DECIDED` · Stable-Baselines3 DQN or a custom PyTorch implementation (both named in the proposal), and whether the environment follows the Gymnasium API.
-  DECIDED: the environment follows the Gymnasium API.
-  `OPEN`: whether DQN uses Stable-Baselines3 or a custom PyTorch implementation. Default: SB3 first.
-- **D14** · [team] · `OPEN` · Action handling: flat 405 actions, action masking, or a factored head.
-  Default: flat, no masking.
-- **D15** · [team] · `OPEN` · Training budget per seed.
-  Default: 1–2M steps for the first run.
-- **D16** · [team] · `OPEN` · Hyperparameters (network size, learning rate, ε schedule, buffer size).
-  Default: SB3 defaults with a 2×256 MLP; every change recorded.
-  - Sub-item · `OPEN` · How observations are scaled or clipped before they go into the network (deferred here from D5; the environment itself has no stock caps).
-    No default yet.
-- **D17** · [team] · `OPEN` · Reward scaling during training.
-  Default: divide by 100 for training only; always report true reward.
+- **D13** · [team] · `DECIDED (provisional)` · Stable-Baselines3 DQN or a custom PyTorch implementation, and whether the environment follows the Gymnasium API.
+  DECIDED (earlier, by the team): the environment follows the Gymnasium API.
+  DECIDED (provisional, decided by Acar; team can object): Stable-Baselines3 DQN with the Gymnasium environment.
+- **D14** · [team] · `DECIDED (provisional)` · Action handling.
+  DECIDED (provisional, decided by Acar; team can object): flat 405 discrete actions, no masking.
+- **D15** · [team] · `DECIDED (provisional)` · Training budget per seed.
+  DECIDED (provisional, decided by Acar; team can object): 2M training steps per seed for the first run.
+- **D16** · [team] · `DECIDED (provisional)` · Hyperparameters (network size, learning rate, ε schedule, buffer size) and observation scaling.
+  DECIDED (provisional, decided by Acar; team can object): SB3 DQN defaults with a 2×256 MLP and γ = 0.99. Observation scaling: divide each feature by a fixed constant from the config, chosen from the observed ranges in the baseline runs. Never change the environment dynamics. Every hyperparameter goes in the config.
+- **D17** · [team] · `DECIDED (provisional)` · Reward scaling during training.
+  DECIDED (provisional, decided by Acar; team can object): rewards are divided by 100 during training only. All reported results use true reward.
 
 ### Evaluation protocol
 
-- **D18** · [team] · `OPEN` · Number of test years, number of DQN seeds, warm-up exclusion, and whether train / tuning / test demand seeds are kept separate.
-  Default: 50 test years, 5 seeds, first 30 days excluded from metrics, separate seed ranges for training, grid search, and testing.
-- **D19** · [team] · `OPEN` · Metric details.
-  Default: undiscounted 365-day reward; fill rate per store and overall; average stock per location.
+- **D18** · [team] · `DECIDED (provisional)` · Number of test years, number of DQN seeds, warm-up exclusion, and seed separation.
+  DECIDED (provisional, decided by Acar; team can object): 50 test years (seeds from the existing test range in the config), 5 DQN training seeds, no warm-up exclusion.
+- **D19** · [team] · `DECIDED (provisional)` · Metric details.
+  DECIDED (provisional, decided by Acar; team can object): undiscounted 365-day reward; fill rate per store and overall; average stock per location.
 - **D20** · [team] · `OPEN` · Which scope reduction to use if needed, and when to trigger it.
   Options from the proposal: fewer actions, or distribution between stores only.
   Default trigger: DQN cannot match the baseline after 2 tuning rounds.
@@ -153,9 +153,10 @@ Note: the baseline involves no learning. Only its three target numbers (depot, S
 ### Setup
 
 - **D21** · [Acar] · `DECIDED` · Python version and environment tool.
-  DECIDED: a Python virtual environment in `.venv` with `requirements.txt`, using the Python available on this machine (must be 3.10 or newer). On the VALAR login node the system `python3` is 3.6.8 (too old), so the venv is built from the `anaconda3/2025.06` module's Python 3.13.9 (`/opt/ohpc/pub/compiler/anaconda3/2025.06/bin/python`).
-- **D22** · [Acar] · `OPEN` · Where training runs: own computers, Colab, or the VALAR cluster. If VALAR, SLURM scripts are needed.
-  Default: develop locally, decide on full experiment compute later.
+  DECIDED: a Python virtual environment in `.venv` with `requirements.txt`, using the Python available on this machine. On the VALAR login node the system `python3` is 3.6.8 (too old), so the venv is built from the `anaconda3/2025.06` module's Python 3.13.9 (`/opt/ohpc/pub/compiler/anaconda3/2025.06/bin/python`).
+  DECIDED (provisional, decided by Acar; team can object): minimum Python 3.12 (was 3.10; open question Q11), so that every teammate can install the pinned NumPy and gets identical random draws.
+- **D22** · [Acar] · `DECIDED (provisional)` · Where training runs.
+  DECIDED (provisional, decided by Acar; team can object): all training runs as SLURM jobs on VALAR, never on the login node. Light work (tests, short smoke runs under ~2 minutes, evaluation) may run on the login node.
 - **D23** · [Acar] · `OPEN` · Logging.
   Default: TensorBoard + CSV.
 
