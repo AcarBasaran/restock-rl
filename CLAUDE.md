@@ -74,7 +74,7 @@ There is no pending-shipment variable for Store A, since its delivery time is on
 - Initial inventories are low and random; the exact distribution is decided, see D6. Pending deliveries start at zero.
 
 **Baseline**
-- A simple order-up-to policy: whenever stock plus pending deliveries falls below a target level, order the difference. Target levels are set by grid search for a fair comparison. Details are open; see D8–D12.
+- A simple order-up-to policy: whenever stock plus pending deliveries falls below a target level, order the difference. Target levels are set by grid search for a fair comparison. Details are decided; see D8–D12.
 
 **Evaluation (settled parts)**
 - Main metric: cumulative reward (profit) over 365 days.
@@ -111,16 +111,18 @@ Format: ID · tag · status · question · suggested default (NOT approved).
 
 ### Baseline design
 
-- **D8** · [team] · `OPEN` · What the depot's "stock plus pending deliveries" counts: depot stock + depot pipeline only, or echelon (also store stock and depot→store pipeline)?
-  Default: depot stock + depot pipeline.
-- **D9** · [team] · `OPEN` · Store shipment rule.
-  Default: ship each store up to its own target, counting store stock + shipments already on the way.
-- **D10** · [team] · `OPEN` · Whether baseline quantities are rounded to the DQN action grid or exact.
-  Default: rounded to the same grid.
-- **D11** · [team] · `OPEN` · Whether the baseline uses the same proportional split when the depot is short.
-  Default: yes.
-- **D12** · [team] · `OPEN` · Grid search ranges for the targets and the number of simulated years per candidate.
-  Default: ~20 years per candidate.
+Note: the baseline involves no learning. Only its three target numbers (depot, Store A, Store B) are tuned, by the grid search in D12.
+
+- **D8** · [team] · `DECIDED` · What the depot's "stock plus pending deliveries" counts.
+  DECIDED: the depot orders up to its target counting only depot stock plus supplier orders on the way. Depot stock is counted after today's shipments to the stores have left. Store stock is not counted, to keep the baseline simple.
+- **D9** · [team] · `DECIDED` · Store shipment rule.
+  DECIDED: each store is topped up to its own target, counting its shelf stock plus shipments on the way. Example: target 40, 15 on the shelf, nothing on the way → ship 25 (before the D10 rounding, which makes it 24).
+- **D10** · [team] · `DECIDED` · Whether baseline quantities are rounded to the DQN action grid or exact.
+  DECIDED: baseline quantities are rounded to the nearest allowed step, the same as DQN: depot orders in multiples of 10 (max 40), store shipments in multiples of 4 (max 32). Ties round up (e.g. 6 → 8, 25 → 30), since shipping slightly more is the safer side. Reason for the steps: fixed truck sizes, big trucks from supplier to depot and small trucks from depot to stores.
+- **D11** · [team] · `DECIDED` · Whether the baseline uses the same proportional split when the depot is short.
+  DECIDED: yes, the baseline uses the same round-down proportional split (D4). The environment applies it automatically.
+- **D12** · [team] · `DECIDED` · Grid search ranges for the targets and the number of simulated years per candidate.
+  DECIDED: grid search over Store A and Store B targets from 20 to 80 in steps of 4, and the depot target from 30 to 200 in steps of 10. About 20 simulated years per combination, using tuning seeds that are separate from the test seeds. If the best value is on the edge of a range, widen that range. If the full grid is too slow, a coarse pass followed by a finer pass around the best values is allowed. Report the chosen targets.
 
 ### DQN setup
 
