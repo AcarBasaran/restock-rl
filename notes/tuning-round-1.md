@@ -26,13 +26,15 @@
 
 ## Tuning years: best checkpoint per seed, mean ± std over 3 seeds
 
-| Variant | 365-day reward | Fill A | Fill B | Fill overall | Stock depot | Stock A | Stock B | Best checkpoint per seed |
-|---|---|---|---|---|---|---|---|---|
-| V0 current setup | 89,730 ± 978 | 97.0% ± 1.2% | 94.5% ± 4.9% | 96.1% ± 2.4% | 3.2 ± 2.6 | 10.2 ± 0.9 | 9.5 ± 4.0 | 400k, 1600k, 600k |
-| V1 + reward centering | 96,345 ± 173 | 96.2% ± 0.3% | 94.0% ± 1.4% | 95.5% ± 0.6% | 1.1 ± 0.3 | 5.1 ± 0.2 | 5.6 ± 0.7 | 2000k, 300k, 400k |
-| **V2 + lr 5e-5, target 20k, batch 128** | **97,027 ± 31** | 96.3% ± 0.5% | 93.1% ± 0.3% | 95.2% ± 0.4% | 1.3 ± 0.2 | 4.7 ± 0.4 | 4.5 ± 0.1 | 600k, 1000k, 900k |
-| V3 + exploration 0.3 | 97,016 ± 14 | 97.0% ± 0.2% | 92.7% ± 0.7% | 95.6% ± 0.3% | 1.4 ± 0.2 | 5.0 ± 0.1 | 4.7 ± 0.4 | 1100k, 1000k, 1000k |
-| Baseline (60 / 24 / 32) | 96,525 | 95.7% | 92.7% | 94.7% | 4.2 | 4.0 | 3.7 | — |
+The lost-sales columns (units of demand lost per year) were added later for D19 option B, which is pending team agreement. They come from the saved evaluation results; nothing was re-run or re-selected.
+
+| Variant | 365-day reward | Fill A | Fill B | Fill overall | Stock depot | Stock A | Stock B | Lost A / yr | Lost B / yr | Best checkpoint per seed |
+|---|---|---|---|---|---|---|---|---|---|---|
+| V0 current setup | 89,730 ± 978 | 97.0% ± 1.2% | 94.5% ± 4.9% | 96.1% ± 2.4% | 3.2 ± 2.6 | 10.2 ± 0.9 | 9.5 ± 4.0 | 220 ± 89 | 202 ± 179 | 400k, 1600k, 600k |
+| V1 + reward centering | 96,345 ± 173 | 96.2% ± 0.3% | 94.0% ± 1.4% | 95.5% ± 0.6% | 1.1 ± 0.3 | 5.1 ± 0.2 | 5.6 ± 0.7 | 278 ± 20 | 218 ± 50 | 2000k, 300k, 400k |
+| **V2 + lr 5e-5, target 20k, batch 128** | **97,027 ± 31** | 96.3% ± 0.5% | 93.1% ± 0.3% | 95.2% ± 0.4% | 1.3 ± 0.2 | 4.7 ± 0.4 | 4.5 ± 0.1 | 273 ± 34 | 254 ± 12 | 600k, 1000k, 900k |
+| V3 + exploration 0.3 | 97,016 ± 14 | 97.0% ± 0.2% | 92.7% ± 0.7% | 95.6% ± 0.3% | 1.4 ± 0.2 | 5.0 ± 0.1 | 4.7 ± 0.4 | 219 ± 14 | 267 ± 27 | 1100k, 1000k, 1000k |
+| Baseline (60 / 24 / 32) | 96,525 | 95.7% | 92.7% | 94.7% | 4.2 | 4.0 | 3.7 | 310 | 269 | — |
 
 **Selected: V2** (97,027). V3 is only 11 lower, which is a tie in practice. The rule picks V2.
 
@@ -81,6 +83,8 @@ V2's three selected checkpoints (600k, 1,000k, 900k), greedy, on the 50 test yea
 | Avg stock depot | 1.3 ± 0.3 | 4.2 | 3.8 ± 4.7 |
 | Avg stock A | 4.7 ± 0.4 | 4.0 | 3.9 ± 3.8 |
 | Avg stock B | 4.6 ± 0.1 | 3.8 | 11.5 ± 11.8 |
+| Lost sales A per year | 281 ± 34 | 323 | 2,244 ± 2,115 |
+| Lost sales B per year | 257 ± 15 | 267 | 691 ± 1,062 |
 
 - **Per seed:** 97,036 / 97,181 / 97,166.
 - **Paired** (same test year, V2 averaged over seeds, minus baseline): +514 per year, std 317 across years. That is a standard error of about 45, so the gap is about 11 standard errors. V2 is better in 49 of 50 years. Per seed it is better in 44, 49 and 47 of 50.
@@ -112,6 +116,8 @@ Raw output (not committed) is in `results/tuning1/20261115-114254_test/`: `test.
 | Avg stock depot | 1.5 ± 0.3 | 1.3 ± 0.3 | 4.2 |
 | Avg stock A | 4.8 ± 0.4 | 4.7 ± 0.4 | 4.0 |
 | Avg stock B | 4.8 ± 0.3 | 4.6 ± 0.1 | 3.8 |
+| Lost sales A per year | 257 ± 42 | 281 ± 34 | 323 |
+| Lost sales B per year | 250 ± 22 | 257 ± 15 | 267 |
 
 | Training seed | Checkpoint (picked on tuning years) | Tuning-year reward | Test-year reward | Mean difference vs baseline | Test years better than baseline |
 |---|---|---|---|---|---|
