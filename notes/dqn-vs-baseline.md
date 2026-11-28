@@ -22,6 +22,8 @@
 | Average stock depot | 3.8 ± 4.7 | 4.2 |
 | Average stock Store A | 3.9 ± 3.8 | 4.0 |
 | Average stock Store B | 11.5 ± 11.8 | 3.8 |
+| Lost sales Store A per year | 2,244 ± 2,115 | 323 |
+| Lost sales Store B per year | 691 ± 1,062 | 267 |
 
 The "±" is the standard deviation of the five per-seed means (ddof = 1). Fill rates are pooled over years, and stock is measured at the end of the day after shipments leave; Q2 and Q3 are still open.
 
