@@ -6,6 +6,23 @@ Still open after night 2: Q2, Q3, Q6, Q7, Q10, and everything from Q12 on.
 Each item names the related decision ID, or "new" if it is not in CLAUDE.md yet
 (I propose adding those to Section 3).
 
+## Where each item is being answered (as of 2026-11-28)
+
+Only what is written in CLAUDE.md counts as decided. Votes on GitHub are input to that.
+
+| Item | GitHub | Replies so far | Note |
+|---|---|---|---|
+| D13–D17 (DQN setup) | #3 | 1 of 3 (A, A, B, A, A) | D15 vote B (500k first) differs from the provisional 2M; data reply posted in #3: every V2 seed's best checkpoint came after 500k steps. |
+| D18–D20 (evaluation, scope reduction) | #4 | 1 of 3 (B, B, C) | D19 B (lost sales per store) is implemented in PR #7, waiting for the decision. D20 C names a reduction; it has not been triggered. |
+| D24, D25 (workflow) | #5 | 1 of 3 (A with names later, B) | D24 names still missing. |
+| Q27 (how to report the gap) | #8 | none | |
+| Q28 (baseline strength) | #9 | none | |
+| Q2, Q3, Q6, Q7, Q12, Q13, Q22 (implemented details) | #10 | none | Option A is always "keep what is implemented". |
+| D23 / Q17 (logging) | — | — | Acar decides directly. |
+| Q10, Q16, Q25 (stale CLAUDE.md wording) | — | — | Acar approves; Q16 and Q25 touch Section 2. |
+| Q14, Q15, Q23 (cluster account, quota, shared slots) | — | — | Acar's infrastructure questions. |
+| Q24 ("clearly below") | — | — | Did not matter: tuned DQN is above the baseline. |
+
 ## Q1 · new · How does one environment step map onto the day, and what happens on the first day?
 
 **Status: DECIDED** as D26 (provisional, by Acar): keep the current step boundaries.
@@ -33,6 +50,8 @@ first day's demand.
 
 ## Q2 · D19 · At what point in the day is "average stock" measured?
 
+**Asked in #10.**
+
 - **Provisional (in `src/evaluate.py`):** the stock that is charged for
   holding: end of the decision day, after shipments left. In-transit units
   are not counted.
@@ -42,6 +61,8 @@ first day's demand.
   methods pay).
 
 ## Q3 · D19 · How are fill rates combined over several years?
+
+**Asked in #10.**
 
 - **Provisional:** the summary pools all years (total sales ÷ total demand);
   per-year fill rates are also kept in each episode's results.
@@ -72,6 +93,8 @@ first day's demand.
 
 ## Q6 · new (D12 detail) · Which number does the grid search maximize?
 
+**Asked in #10.**
+
 - **Provisional (in `src/baseline.py`):** the mean undiscounted 365-day
   reward over the tuning years (the main evaluation metric).
 - **Alternative:** the mean discounted reward with γ = 0.99 (DQN's training
@@ -81,6 +104,8 @@ first day's demand.
 - **Suggested default:** undiscounted (matches the main metric).
 
 ## Q7 · new (D12 detail) · What are "20 simulated years per candidate"?
+
+**Asked in #10.**
 
 - **Provisional:** 20 separate 365-day years, each starting from fresh random
   stock, on tuning seeds 100000–100019, the same 20 for every candidate.
@@ -135,6 +160,8 @@ first day's demand.
 
 ## Q12 · D18 detail · Which numbers are the 5 DQN training seeds?
 
+**Asked in #10.**
+
 - D18 fixes 5 seeds but not their values. **Provisional (in the config):**
   200000–200004. SB3 uses the seed for the network, exploration and the
   first `reset()`; later training years continue that environment's random
@@ -143,6 +170,8 @@ first day's demand.
 - **Suggested default:** keep.
 
 ## Q13 · D16 detail · Exact rule for the observation scaling constants
+
+**Asked in #10.**
 
 - D16 says "chosen from the observed ranges in the baseline runs" but not
   how. **Provisional rule:** the maximum of each feature while the tuned
@@ -266,6 +295,8 @@ first day's demand.
 
 ## Q22 · D16/D18 detail · Which 3 seeds per variant in tuning round 1?
 
+**Asked in #10.**
+
 - I used the first three training seeds (200000, 200001, 200002) for every
   variant, so the variants are compared on the same seeds. V0 on these seeds
   is the same setup as night 2's seed indices 0–2, which doubles as a
@@ -318,6 +349,8 @@ first day's demand.
 
 ## Q27 · D19 · How to report a small difference
 
+**Asked in #8.**
+
 - The gap is small in relative terms (0.5%) but very consistent: paired
   per-year std 317, so the gap is about 11 standard errors.
 - **Question:** which uncertainty goes in the report? Options: the spread
@@ -327,6 +360,8 @@ first day's demand.
   paired per-year difference with the number of years DQN is better.
 
 ## Q28 · Section 2 / D8 · Is the order-up-to baseline strong enough for a 0.5% claim?
+
+**Asked in #9.**
 
 - DQN's gain comes from holding less stock at the depot and more on the
   store shelves. Under D8 the baseline's depot rule ignores store stock,
