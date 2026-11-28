@@ -36,6 +36,8 @@ METRICS = [
     ("avg_stock_depot", "Average stock depot", "{:.1f}"),
     ("avg_stock_a", "Average stock Store A", "{:.1f}"),
     ("avg_stock_b", "Average stock Store B", "{:.1f}"),
+    ("mean_lost_a", "Lost sales Store A per year", "{:,.0f}"),
+    ("mean_lost_b", "Lost sales Store B per year", "{:,.0f}"),
 ]
 
 # Chart styling (light surface, reference data-viz palette).

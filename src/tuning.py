@@ -67,6 +67,8 @@ METRICS = [
     ("avg_stock_depot", "Avg stock depot", "{:.1f}"),
     ("avg_stock_a", "Avg stock A", "{:.1f}"),
     ("avg_stock_b", "Avg stock B", "{:.1f}"),
+    ("mean_lost_a", "Lost A / yr", "{:,.0f}"),
+    ("mean_lost_b", "Lost B / yr", "{:,.0f}"),
 ]
 
 

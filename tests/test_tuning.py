@@ -102,3 +102,18 @@ def test_test_extra_seeds_needs_first_test_and_runs_once(tmp_path):
     (tmp_path / tuning.EXTRA_MARKER).write_text("{}")
     with pytest.raises(SystemExit, match="already tested"):
         tuning.cmd_test_extra_seeds(args)
+
+
+# ------------------------------------------------- lost sales per store (D19)
+def test_result_tables_report_lost_sales_per_store():
+    from src import compare
+
+    keys = {"mean_total_reward": 97000.0, "fill_rate_a": 0.96, "fill_rate_b": 0.93, "fill_rate": 0.95,
+            "avg_stock_depot": 1.3, "avg_stock_a": 4.7, "avg_stock_b": 4.5, "mean_lost_a": 273.0, "mean_lost_b": 254.0}
+    runs = [{"best": dict(keys, steps=100000)} for _ in range(3)]
+    table = tuning.variant_table({"v2": runs}, dict(keys, mean_lost_a=310.0, mean_lost_b=269.0))
+    assert "Lost A / yr" in table and "Lost B / yr" in table
+    assert "273 ± 0" in table and "| 310 | 269 |" in table
+    cmp_table = compare.comparison_table([keys, keys], keys, 1000.0)
+    assert "Lost sales Store A per year | 273 ± 0 | 273 |" in cmp_table
+    assert "Lost sales Store B per year | 254 ± 0 | 254 |" in cmp_table
